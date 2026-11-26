@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contador de Arremessos</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#14100c">
+<link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -121,8 +124,8 @@ tr.cur td{background:#2b2012}
 .body{display:flex;gap:10px;align-items:center;margin-top:8px;background:#0b0907;border:1px solid var(--line);border-radius:10px;padding:6px 8px}#fxBTxt{font:600 14px/1.35 Barlow,sans-serif}#fxBTxt b{color:var(--cyan)}
 .hb{display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}.hb button{min-height:34px;padding:0 10px;font-size:14px}.hb button.sel{background:var(--cyan);color:#041417;border-color:var(--cyan)}
 .tabs{position:sticky;top:0;z-index:20;display:flex;gap:4px;overflow-x:auto;background:var(--bg);padding:6px 0 8px;margin:0 0 10px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
-.tabs button{flex:1 1 auto;min-height:44px;padding:0 6px;font:700 13.5px Barlow,sans-serif;border-radius:22px;white-space:nowrap}.tabs button.on{background:var(--ball);border-color:var(--ball);color:#1a0c03}
-[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"]{display:block}
+.tabs button{flex:0 0 auto;min-height:44px;padding:0 6px;font:700 13.5px Barlow,sans-serif;border-radius:22px;white-space:nowrap}.tabs button.on{background:var(--ball);border-color:var(--ball);color:#1a0c03}
+[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"],body[data-t="comp"] [data-tab~="comp"]{display:block}
 .side{display:grid;gap:16px;align-content:start}body:not([data-t="treino"]) .grid{grid-template-columns:minmax(0,1fr)}
 .big.live{flex:1 1 100%;justify-content:center;min-height:52px;font-size:18px;color:#ff6b6b;border-color:#ff6b6b}.big.live.on{background:#ff4d4d;color:#fff;border-color:#ff4d4d}
 #calC{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);touch-action:manipulation;background:#000}.calstep{font:700 16px/1.35 Barlow,sans-serif;color:var(--cyan);margin:8px 0}
@@ -137,13 +140,16 @@ tr.cur td{background:#2b2012}
 .stage.livefs{position:fixed;inset:0;z-index:100;border-radius:0;aspect-ratio:auto;width:100vw;height:100vh;border:0}
 .liveopt{flex:1 1 100%;display:grid;gap:6px;background:#1b1510;border:1px solid var(--line);border-radius:12px;padding:8px 10px}.liveopt>span{font:600 14px Barlow,sans-serif;color:var(--mute)}.liveopt .chips{margin:0}.liveopt .chips button{flex:1}
 .hudgoal{font-size:.5em;color:#ddd}
+.bkrem{margin-top:10px;background:#2a1f12;border:1px solid #6b4a1e;border-radius:12px;padding:10px;font:600 14px/1.4 Barlow,sans-serif;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gbar{height:14px;background:#0b0907;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:4px 0 10px}.gbar i{display:block;height:100%;background:var(--ok)}
+.cmp{display:grid;gap:8px;margin:8px 0}.cmp .pl{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px}.cmp .pl b{font:800 22px "Barlow Condensed",sans-serif}.cmp .pl .sim{float:right;font:800 26px "Barlow Condensed",sans-serif;color:var(--cyan)}
 @media(prefers-reduced-motion:reduce){.flash{transition:none}}
 </style>
 </head>
 <body data-t="treino">
 <div class="wrap">
   <h1>Contador de <span>Arremessos</span></h1>
-  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
+  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="comp">Comparador</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
   <div class="grid">
     <section data-tab="treino">
       <div class="stage" id="stage">
@@ -162,6 +168,7 @@ tr.cur td{background:#2b2012}
       <div class="fix" id="fixBar" hidden>
         <div class="fixtop"><button id="fxPrev" aria-label="Arremesso anterior">◀</button><div id="fxTxt"></div><button id="fxNext" aria-label="Próximo arremesso">▶</button></div>
         <div class="fixbtns"><button class="big ok" id="fxC">✓ Cesta</button><button class="big no" id="fxE">✗ Erro</button></div>
+        <div class="note" id="fxArc" style="margin:6px 2px 0"></div>
         <div class="body" id="fxBody" hidden><svg id="fxFig" viewBox="0 0 60 90" width="60" height="90" aria-hidden="true"></svg><div><div id="fxBTxt"></div><div class="hb"><span>Mão:</span><button id="fxHD">Direita</button><button id="fxHE">Esquerda</button></div></div></div>
         <div class="fixbtns sm"><button id="fxAgain">↻ Ver de novo</button><button id="fxDel">Não foi arremesso</button><button id="fxAdd">+ Faltou um aqui</button></div>
       </div>
@@ -180,6 +187,7 @@ tr.cur td{background:#2b2012}
         <label class="btn main big pick">Enviar vídeo do celular<input type="file" accept="video/*" id="fOpen" aria-label="Escolher vídeo"></label>
         <button class="big live" id="bLive">● Ao vivo com a câmera</button>
         <div class="liveopt" id="liveOpt"><span>Câmera:</span><div class="chips" id="camSide"><button data-c="environment">Traseira</button><button data-c="user">Frontal</button></div><span>Série ao vivo:</span><div class="chips" id="goal"><button data-g="0" class="on">Livre</button><button data-g="10">10</button><button data-g="25">25</button><button data-g="50">50</button><button data-g="100">100</button></div>
+          <label class="row"><input type="checkbox" id="bip"> Bipe de cesta e de erro</label>
           <label class="row"><input type="checkbox" id="spk"> Falar a contagem a cada arremesso</label></div>
         <label class="btn pick alt">Não abriu a galeria? Toque aqui<input type="file" id="fAny" aria-label="Escolher arquivo de vídeo"></label>
         <button id="bStop" hidden>Parar</button>
@@ -190,6 +198,7 @@ tr.cur td{background:#2b2012}
         <div class="pct"><small>Aproveitamento</small><strong id="sP">–</strong></div>
       </div>
       <div class="extra" id="extra"></div>
+      <div class="bkrem" id="bkRem" hidden>Faz tempo que você não salva uma cópia do histórico. <button id="bkNow">Salvar cópia agora</button></div>
     </section>
     <section class="side">
       <div class="card" data-tab="ajustes">
@@ -238,6 +247,15 @@ tr.cur td{background:#2b2012}
         <p class="note" style="margin-top:0">Salva um arquivo com todos os treinos e tudo que o app aprendeu da sua quadra. Use para trocar de celular ou passar para a versão nova.</p>
         <div class="btns"><button id="bExp">Salvar cópia</button><label class="btn" for="fImp">Restaurar cópia</label><input type="file" id="fImp" accept=".json,application/json" hidden></div>
         <div class="btns"><button class="danger" id="bWipe">Apagar todo o histórico</button></div>
+      </div>
+      <div class="card" data-tab="comp">
+        <h2>Comparador de mecânica</h2>
+        <div id="comp"><p class="note">Aparece depois de alguns arremessos analisados com o reconhecimento do corpo ligado.</p></div>
+      </div>
+      <div class="card" data-tab="stats">
+        <h2>Metas da semana</h2>
+        <div id="goals"></div>
+        <div class="calin"><label>Arremessos na semana <input type="number" id="gA" min="10" max="5000" step="10" inputmode="numeric"></label><label>Aproveitamento (%) <input type="number" id="gP" min="5" max="100" step="1" inputmode="numeric"></label></div>
       </div>
       <div class="card" data-tab="stats">
         <h2>Recordes e estatísticas</h2>
@@ -1245,6 +1263,7 @@ function showFix() {
   $('fxPrev').disabled = sel <= 0; $('fxNext').disabled = sel >= S.length - 1;
   $('fxDel').textContent = delArm2 === sel ? 'Toque de novo p/ apagar' : 'Não foi arremesso';
   showBody(s);
+  $('fxArc').innerHTML = s.arc ? `Arco <b>${s.arc.a > 0 ? '+' : ''}${String(s.arc.a.toFixed(1)).replace('.', ',')} m</b> acima do aro${!s.made && s.arc.d ? ` · errou <b>${{ C: 'curto', L: 'longo', A: 'no aro' }[s.arc.d]}</b>` : ''}` : '';
 }
 function goShot(i, play) { const S = A.shots; if (!S.length) return; sel = Math.max(0, Math.min(S.length - 1, i)); delArm2 = null; render(); if (play) { playClip(S[sel]); status('Arremesso ' + S[sel].n + ': está certo? Toque em Cesta ou Erro', 'on'); } }
 function setRes(made) { // marca e já passa para o próximo
@@ -1433,8 +1452,8 @@ function backupData() { const o = { app: 'contador-arremessos', v: 1, date: new 
 $('bExp').onclick = async () => {
   const o = backupData(), txt = JSON.stringify(o), name = 'arremessos-backup-' + new Date().toISOString().slice(0, 10) + '.json';
   try { const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-    if (dl) { try { await dl.save({ filename: name, data: txt }); msg('Cópia salva: ' + name + ' (pasta Downloads).'); } catch (x) { msg('A cópia não foi salva. Toque de novo e confirme para salvar.'); } return; } } catch (x) {}
-  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); msg('Cópia salva: ' + name + ' (pasta Downloads).'); }
+    if (dl) { try { await dl.save({ filename: name, data: txt }); msg('Cópia salva: ' + name + ' (pasta Downloads).'); store('arremessos-ultbackup', Date.now()); bkCheck(); } catch (x) { msg('A cópia não foi salva. Toque de novo e confirme para salvar.'); } return; } } catch (x) {}
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); msg('Cópia salva: ' + name + ' (pasta Downloads).'); store('arremessos-ultbackup', Date.now()); bkCheck(); }
   catch (e) { navigator.clipboard.writeText(txt).then(() => msg('Não deu para baixar; a cópia foi para a área de transferência.'), () => msg('Não consegui salvar a cópia.')); }
 };
 $('fImp').onchange = async e => {
@@ -1466,7 +1485,7 @@ function recDate(m, file) { // dia e hora em que o vídeo foi gravado (não quan
 function snapshotCur() {
   const S = A.shots;
   return { id: cur.id, date: cur.date, src: cur.src, dur: Math.round(cur.dur || (cur.src === 'Ao vivo' && cur.t0 ? (Date.now() - cur.t0) / 1000 : 0)), a: S.length, c: S.filter(s => s.made).length, fix: S.filter(s => s.fixed).length, cam: +$('cam').value || 7,
-    shots: S.map(s => [s.made ? 1 : 0, s.geo ? +s.geo.dist.toFixed(2) : null, s.geo ? +s.geo.dx.toFixed(2) : null, s.geo ? +s.geo.dz.toFixed(2) : null, +(+s.t || 0).toFixed(1), s.fixed ? 1 : 0, s.manual ? 1 : 0, s.f ? [s.f.cross, s.f.xin, s.f.emerge, s.f.slow, s.f.net, s.f.size, s.f.rebound, s.f.dwell, s.f.vx || 0].map(v => +(+v || 0).toFixed(3)) : null, s.p == null ? null : +s.p.toFixed(3), s.rev ? 1 : 0, s.doubt ? 1 : 0, s.body || null, s.geo && s.geo.cx != null ? [+s.geo.cx.toFixed(2), +s.geo.cy.toFixed(2)] : null]) };
+    shots: S.map(s => [s.made ? 1 : 0, s.geo ? +s.geo.dist.toFixed(2) : null, s.geo ? +s.geo.dx.toFixed(2) : null, s.geo ? +s.geo.dz.toFixed(2) : null, +(+s.t || 0).toFixed(1), s.fixed ? 1 : 0, s.manual ? 1 : 0, s.f ? [s.f.cross, s.f.xin, s.f.emerge, s.f.slow, s.f.net, s.f.size, s.f.rebound, s.f.dwell, s.f.vx || 0].map(v => +(+v || 0).toFixed(3)) : null, s.p == null ? null : +s.p.toFixed(3), s.rev ? 1 : 0, s.doubt ? 1 : 0, s.body || null, s.geo && s.geo.cx != null ? [+s.geo.cx.toFixed(2), +s.geo.cy.toFixed(2)] : null, s.arc || null]) };
 }
 function saveCur() {
   if (!cur || demo || !A.shots.length) return;
@@ -1483,7 +1502,7 @@ function delSess(id) {
   renderHist(); court();
 }
 let per = 0, openDet = null, mapMode = 'cur';
-const unpack = x => ({ made: !!x[0], geo: x[1] == null ? null : Object.assign({ dist: x[1], dx: x[2], dz: x[3] }, x[12] ? { cx: x[12][0], cy: x[12][1] } : {}), t: x[4] || 0, fixed: !!x[5], manual: !!x[6], fv: x[7] || null, p: x[8], rev: !!x[9], doubt: !!x[10], body: x[11] || null });
+const unpack = x => ({ made: !!x[0], geo: x[1] == null ? null : Object.assign({ dist: x[1], dx: x[2], dz: x[3] }, x[12] ? { cx: x[12][0], cy: x[12][1] } : {}), t: x[4] || 0, fixed: !!x[5], manual: !!x[6], fv: x[7] || null, p: x[8], rev: !!x[9], doubt: !!x[10], body: x[11] || null, arc: x[13] || null });
 const pc = (c, a) => a ? Math.round(100 * c / a) + '%' : '–';
 function zonesHTML(list) {
   const Z = ZN.map(n => ({ n, a: 0, c: 0 }));
@@ -1520,8 +1539,70 @@ function renderHist() {
     return `<div class="sess"><div class="d">${esc(fmtD(h.date))}${cur && h.id === cur.id ? ' · atual' : ''}<small>${esc(h.src || '')} · ${+h.c || 0} de ${+h.a || 0}${h.fix ? ' · ' + (+h.fix) + ' corrigido' + (h.fix > 1 ? 's' : '') : ''}</small></div><div class="p">${p}</div><button data-o="${id}">${open ? 'Fechar' : 'Detalhes'}</button><button data-v="${id}">Mapa</button><button data-x="${id}">${delArm === h.id ? 'Confirmar apagar' : 'Apagar treino'}</button>${open ? sessDetail(h) : ''}</div>`; }).join('')
     : '<p class="note">Nenhum treino ' + (per ? 'neste período.' : 'salvo ainda.') + '</p>';
   renderEvo(H);
-  renderRecs(hist);
+  renderRecs(hist); renderGoals(); renderComp(); bkCheck();
   renderLearn();
+}
+// ---------- metas da semana ----------
+function weekStart(d) { const t = new Date(d); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return t; }
+function renderGoals() {
+  let G = { a: 300, p: 40 }; try { G = Object.assign(G, JSON.parse(store('arremessos-metas') || '{}')); } catch (e) {}
+  if (document.activeElement !== $('gA')) $('gA').value = G.a; if (document.activeElement !== $('gP')) $('gP').value = G.p;
+  const w0 = weekStart(new Date()).getTime(), W = hist.filter(h => new Date(h.date).getTime() >= w0), a = W.reduce((t, h) => t + (h.a || 0), 0), c = W.reduce((t, h) => t + (h.c || 0), 0), p = a ? 100 * c / a : 0;
+  const left = 7 - ((new Date().getDay() + 6) % 7);
+  $('goals').innerHTML = `<div class="lr"><span>Arremessos: <b>${a}</b> de ${G.a}</span><b class="${a >= G.a ? 'ok' : 'wait'}">${a >= G.a ? 'meta batida ✓' : 'faltam ' + (G.a - a)}</b></div><div class="gbar"><i style="width:${Math.min(100, 100 * a / G.a)}%"></i></div>
+    <div class="lr"><span>Aproveitamento: <b>${a ? Math.round(p) + '%' : '–'}</b> (meta ${G.p}%)</span><b class="${a && p >= G.p ? 'ok' : 'wait'}">${a && p >= G.p ? 'meta batida ✓' : a ? 'faltam ' + Math.ceil(G.p - p) + ' pontos' : 'sem treino ainda'}</b></div><div class="gbar"><i style="width:${Math.min(100, 100 * p / G.p)}%;background:var(--cyan)"></i></div>
+    <p class="note">Semana de segunda a domingo · ${left === 1 ? 'último dia' : 'faltam ' + left + ' dias'} · ${W.length} ${W.length === 1 ? 'treino' : 'treinos'} nesta semana.</p>`;
+}
+for (const id of ['gA', 'gP']) $(id).onchange = () => { const a = Math.max(10, +$('gA').value || 300), p = Math.min(100, Math.max(5, +$('gP').value || 40)); store('arremessos-metas', JSON.stringify({ a, p })); renderGoals(); };
+// ---------- lembrete de cópia de segurança ----------
+function bkCheck() { const last = +(store('arremessos-ultbackup') || 0), first = hist.length ? new Date(hist[0].date).getTime() : Date.now(); const ref = last || first; $('bkRem').hidden = !(hist.length >= 3 && Date.now() - ref > 7 * 864e5); }
+$('bkNow').onclick = () => $('bExp').click();
+// ---------- comparador de mecânica (perfis aproximados de arremessadores da NBA) ----------
+const NBA = [ // tempo de soltura (s), pausa no alto (0 = 1 tempo, 1 = 2 tempos), soltura/altura, salto/altura, deslocamento/altura
+  { n: 'Stephen Curry', tp: 0.40, mo: 0.15, rr: 1.22, jr: 0.10, fd: 0.03, d: 'soltura muito rápida, em um tempo só, saindo de baixo' },
+  { n: 'Klay Thompson', tp: 0.45, mo: 0.20, rr: 1.28, jr: 0.07, fd: 0.02, d: 'compacto, sem movimento sobrando, quase sem salto' },
+  { n: 'Kyle Korver', tp: 0.42, mo: 0.15, rr: 1.27, jr: 0.05, fd: 0.02, d: 'recebe e solta muito rápido, salto pequeno' },
+  { n: 'Damian Lillard', tp: 0.45, mo: 0.15, rr: 1.21, jr: 0.09, fd: 0.04, d: 'bolso baixo, um tempo só, alcance longo' },
+  { n: 'Trae Young', tp: 0.45, mo: 0.15, rr: 1.20, jr: 0.08, fd: 0.06, d: 'soltura baixa e rápida, muitas vezes se afastando' },
+  { n: 'Ray Allen', tp: 0.55, mo: 0.80, rr: 1.30, jr: 0.14, fd: 0.02, d: 'clássico de dois tempos, bom salto, muito equilibrado' },
+  { n: 'Kevin Durant', tp: 0.55, mo: 0.60, rr: 1.36, jr: 0.10, fd: 0.07, d: 'soltura bem alta, acima da cabeça' },
+  { n: 'Dirk Nowitzki', tp: 0.65, mo: 0.70, rr: 1.38, jr: 0.06, fd: 0.15, d: 'soltura alta caindo para trás (fadeaway)' },
+  { n: 'Kawhi Leonard', tp: 0.65, mo: 0.90, rr: 1.30, jr: 0.10, fd: 0.04, d: 'dois tempos bem marcados, sobe e para antes de soltar' },
+  { n: 'Devin Booker', tp: 0.50, mo: 0.40, rr: 1.30, jr: 0.11, fd: 0.05, d: 'equilibrado, meio-termo entre um e dois tempos' }
+];
+function myMech() {
+  const all = hist.flatMap(h => (h.shots || []).map(unpack)).filter(x => x.body && x.body.tp != null && x.body.rr != null);
+  const made = all.filter(x => x.made), L = made.length >= 8 ? made : all; if (L.length < 5) return null;
+  const md = f => medN(L.map(f));
+  return { n: L.length, fromMade: L === made, tp: md(x => x.body.tp), mo: Math.min(1, md(x => x.body.pz || 0) / 0.2), rr: md(x => x.body.rr), jr: md(x => x.body.jr), fd: md(x => x.body.fd || 0), e: md(x => x.body.e), k: md(x => x.body.k) };
+}
+function renderComp() {
+  const M = myMech();
+  if (!M) { $('comp').innerHTML = `<p class="note">Preciso de pelo menos 5 arremessos analisados com o reconhecimento do corpo (aba Ajustes) para comparar. Envie um vídeo de treino.</p>`; return; }
+  const SC = { tp: 0.15, mo: 0.4, rr: 0.05, jr: 0.04, fd: 0.05 };
+  const R = NBA.map(p => { const d2 = Object.keys(SC).reduce((t, k) => t + ((M[k] - p[k]) / SC[k]) ** 2, 0); return { ...p, sim: Math.round(100 / (1 + d2 / 8)) }; }).sort((a, b) => b.sim - a.sim);
+  const nf2 = (v, k) => v.toFixed(k).replace('.', ',');
+  const tag = (v, lo, hi, a, b, c) => v < lo ? a : v > hi ? c : b;
+  let h = `<p class="note" style="margin-top:0">Baseado em ${M.n} arremessos seus${M.fromMade ? ' que foram cesta' : ''}.</p><div class="cmp">`;
+  R.slice(0, 3).forEach((p, i) => { h += `<div class="pl"><span class="sim">${p.sim}%</span><small>${i === 0 ? 'Mais parecido' : (i + 1) + 'º'}</small><br><b>${p.n}</b><br><small style="color:var(--mute)">${p.d}</small></div>`; });
+  h += '</div><h3>Sua mecânica</h3><div class="scroll"><table class="wk rt"><tbody>';
+  const top = R[0], row = (k, you, them, note) => `<tr><td>${k}<br><small style="color:var(--mute)">${note}</small></td><td><b>${you}</b></td><td><small>${top.n.split(' ').pop()}: ${them}</small></td></tr>`;
+  h += row('Tempo de soltura', nf2(M.tp, 2) + ' s', nf2(top.tp, 2) + ' s', tag(M.tp, 0.5, 0.8, 'rápido', 'médio', 'lento') + ' · NBA em média ~0,55 s');
+  h += row('Estilo', M.mo < 0.5 ? '1 tempo' : '2 tempos', top.mo < 0.5 ? '1 tempo' : '2 tempos', M.mo < 0.5 ? 'a bola sobe sem parar' : 'a bola para no alto antes de sair');
+  h += row('Altura da soltura', nf2(M.rr * 1.81, 2) + ' m', nf2(top.rr * 1.81, 2) + ' m*', tag(M.rr, 1.24, 1.33, 'baixa (bolso baixo)', 'média', 'alta, acima da cabeça'));
+  h += row('Salto', Math.round(M.jr * 181) + ' cm', Math.round(top.jr * 181) + ' cm*', tag(M.jr, 0.06, 0.12, 'pequeno', 'médio', 'alto'));
+  h += row('Para trás (fadeaway)', Math.round(M.fd * 181) + ' cm', Math.round(top.fd * 181) + ' cm*', tag(M.fd, 0.05, 0.1, 'reto, equilibrado', 'um pouco', 'bastante'));
+  if (M.e != null) h += row('Cotovelo na soltura', Math.round(M.e) + '°', '–', M.e >= 160 ? 'braço bem esticado' : 'braço ainda dobrado ao soltar');
+  h += '</tbody></table></div>';
+  const tips = [];
+  if (M.tp > 0.8) tips.push('Sua soltura é lenta: treine receber e já subir com a bola, sem segurar.');
+  if (M.mo >= 0.5 && M.tp > 0.6) tips.push('A pausa no alto deixa o arremesso mais lento. Tente um movimento contínuo, do quadril até soltar.');
+  if (M.e != null && M.e < 150) tips.push('Você solta com o cotovelo ainda dobrado: termine o arremesso com o braço esticado.');
+  if (M.fd > 0.1) tips.push('Você cai muito para trás: em arremessos livres, suba e desça no mesmo lugar.');
+  if (M.jr < 0.04) tips.push('Quase sem salto: usar mais as pernas ajuda na distância e poupa o braço.');
+  if (tips.length) h += '<h3>Dicas</h3><ul style="margin:4px 0 0 18px">' + tips.map(t => `<li>${t}</li>`).join('') + '</ul>';
+  h += '<p class="note">*Valores dos jogadores escalados para a sua altura. Os perfis da NBA são aproximados, montados de análises públicas de vídeo e de tempos de soltura divulgados; não são medições oficiais. Comparação só de estilo.</p>';
+  $('comp').innerHTML = h;
 }
 function renderRecs(H) {
   const S = H.filter(h => (h.a || 0) > 0).slice().sort((a, b) => a.date < b.date ? -1 : 1);
@@ -1588,6 +1669,16 @@ function renderRecs(H) {
       ${row('Salto', x => x.b.j, v => Math.round(v) + ' cm')}${row('Altura da soltura', x => x.b.r, v => v.toFixed(2).replace('.', ',') + ' m')}${row('Cotovelo na soltura', x => x.b.e, v => Math.round(v) + '°')}${row('Joelho dobrado (menor ângulo)', x => x.b.k, v => Math.round(v) + '°')}</tbody></table></div>
       <p class="note">Compare as colunas: onde as cestas são diferentes dos erros está o ajuste que mais ajuda o seu arremesso. Cotovelo perto de 180° = braço esticado.</p>`;
   }
+  { const Aall = S.flatMap(h => (h.shots || []).filter(x => x[13]).map(x => ({ m: !!x[0], a: x[13] })));
+    if (Aall.length >= 5) {
+      const av = L => L.length ? L.reduce((t, x) => t + x.a.a, 0) / L.length : null, mk = Aall.filter(x => x.m), ms = Aall.filter(x => !x.m), dir = c => ms.filter(x => x.a.d === c).length, nd = ms.filter(x => x.a.d).length;
+      const f2 = v => v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + ' m';
+      html += `<h3>Arco e erros</h3><div class="scroll"><table class="wk rt"><tbody><tr><td>Arco médio nas cestas</td><td><b>${f2(av(mk))}</b></td><td><small>acima do aro</small></td></tr><tr><td>Arco médio nos erros</td><td><b>${f2(av(ms))}</b></td><td></td></tr>
+        ${nd ? `<tr><td>Erros curtos</td><td><b>${Math.round(100 * dir('C') / nd)}%</b></td><td><small>${dir('C')}/${nd}</small></td></tr><tr><td>Erros longos</td><td><b>${Math.round(100 * dir('L') / nd)}%</b></td><td><small>${dir('L')}/${nd}</small></td></tr><tr><td>Bateu no aro e saiu</td><td><b>${Math.round(100 * dir('A') / nd)}%</b></td><td><small>${dir('A')}/${nd}</small></td></tr>` : ''}</tbody></table></div>`;
+      if (nd >= 5 && dir('C') > dir('L') * 1.5) html += '<p class="note">Você erra mais <b>curto</b>: use mais as pernas e solte um pouco mais alto.</p>';
+      else if (nd >= 5 && dir('L') > dir('C') * 1.5) html += '<p class="note">Você erra mais <b>longo</b>: solte com o arco um pouco mais alto e menos força no braço.</p>';
+      const am = av(mk), as = av(ms); if (am != null && as != null && am - as > 0.3) html += '<p class="note">Suas cestas têm o arco mais alto que os erros: arco alto funciona para você.</p>';
+    } }
   html += `<h3>Por distância</h3><div class="scroll"><table class="wk rt"><tbody>${grp(zK, ZN)}</tbody></table></div>`;
   html += `<h3>Por lado</h3><div class="scroll"><table class="wk rt"><tbody>${grp(sideK, ['Esquerda', 'Centro', 'Direita'])}</tbody></table></div>`;
   html += `<h3>Por horário</h3><div class="scroll"><table class="wk rt"><tbody>${grp(perK, ['Manhã', 'Tarde', 'Noite'])}</tbody></table></div>`;
@@ -1843,9 +1934,9 @@ function parseMoov(m) {
   return null;
 }
 const yieldNow = () => new Promise(r => setTimeout(r, 0));
-try { if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())); if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k))); } catch (e) {} // remove a versão "segundo plano"
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} // app instalável e sem internet
 // ---------- abas ----------
-for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); };
+for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); if (b.dataset.t === 'comp') renderComp(); };
 // ---------- quadra aprendida sozinha: chão pelo seu tamanho na imagem (você tem 1,81 m) ----------
 let FLOOR = { obs: [], fit: null }; try { const f0 = JSON.parse(store('arremessos-chao') || 'null'); if (f0 && f0.obs) FLOOR = f0; } catch (e) {}
 function fitFloor() { // altura do corpo na imagem = a·(y dos pés − horizonte)
@@ -1866,6 +1957,16 @@ function learnFloor() { // junta o que viu neste vídeo ao que já sabia
   const add = A.shots.filter(s => s.body && s.body.o).map(s => s.body.o);
   if (!add.length) return; FLOOR.obs = FLOOR.obs.concat(add).slice(-600); fitFloor(); store('arremessos-chao', JSON.stringify(FLOOR));
 }
+function shotArc(s) { // altura do arco acima do aro, ângulo de saída e para onde a bola errou
+  const h = A.hoop; if (!h || s.manual) return null;
+  const P = A.ballPts(s.t - 0.1, (s.ta || s.t + 1.6) + 0.5); if (P.length < 5) return null;
+  const ap = P.reduce((b, p) => p.y < b.y ? p : b), a = (h.y - ap.y) / h.w * 0.45;
+  const L = P.filter(p => p.t >= s.t).slice(0, 5); let g = null; if (L.length >= 3) { const p0 = L[0], p1 = L[L.length - 1]; g = Math.round(Math.atan2(p0.y - p1.y, Math.abs(p1.x - p0.x) + 1e-6) * 180 / Math.PI); }
+  let d = null;
+  if (!s.made) { const sg = Math.sign(P[0].x - h.cx) || 1, q = P.find(p => p.t > ap.t && p.y >= h.y - h.w * 0.2 && Math.abs(p.x - h.cx) < h.w * 3); if (q) { const off = (q.x - h.cx) * sg / h.w; d = off > 0.35 ? 'C' : off < -0.35 ? 'L' : 'A'; } }
+  return { a: +a.toFixed(2), g, d };
+}
+function setArcs() { for (const s of A.shots) { if (!s.arc) s.arc = shotArc(s); } }
 function setFeet() { const ph = proc.height || 270; for (const s of A.shots) { if (s.foot || s.manual) continue; const b = A.plBox(s.t - 0.7, s.t - 0.15); if (b) s.foot = [(b[0] + b[2]) / 2 / 480, b[3] / ph]; } }
 function floorGeo(ft) {
   const F = FLOOR.fit, h = A.hoop; if (!F || !h || !ft) return null;
@@ -2029,11 +2130,20 @@ function calTick() {
 }
 let GOAL = +(store('arremessos-serie') || 0); $('spk').checked = store('arremessos-falar') === '1';
 $('spk').onchange = e => store('arremessos-falar', e.target.checked ? '1' : '0');
+$('bip').checked = store('arremessos-bipe') !== '0'; $('bip').onchange = e => store('arremessos-bipe', e.target.checked ? '1' : '0');
+let AC = null;
+function beep(made) { // cesta: dois tons subindo; erro: um tom grave
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime;
+    const tone = (f, a, d) => { const o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = f; o.type = 'sine'; g.gain.setValueAtTime(0.0001, t + a); g.gain.exponentialRampToValueAtTime(0.35, t + a + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); o.connect(g).connect(AC.destination); o.start(t + a); o.stop(t + a + d + 0.05); };
+    if (made) { tone(880, 0, 0.14); tone(1320, 0.13, 0.2); } else tone(300, 0, 0.35);
+  } catch (e) {}
+}
 const paintGoal = () => { for (const b of $('goal').children) b.classList.toggle('on', +b.dataset.g === GOAL); };
 for (const b of $('goal').children) b.onclick = () => { GOAL = +b.dataset.g; store('arremessos-serie', GOAL); paintGoal(); };
 paintGoal();
 async function liveStart() {
   goFull(); // precisa ser logo no toque
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume(); } catch (e) {}
   stopNarration(); $('narrBar').hidden = true; markMode = false; $('markBar').hidden = true;
   stopAll(); msg('');
   try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false }); }
@@ -2060,7 +2170,7 @@ async function liveStart() {
     for (const sh of S) {
       if (sh.manual || now - (sh.ta || sh.t + 1.2) < 1.2) continue;
       if (liveSaid.some(t => Math.abs(t - sh.t) < 1)) continue;
-      liveSaid.push(sh.t); flash(sh.made);
+      liveSaid.push(sh.t); flash(sh.made); if ($('bip').checked) beep(sh.made);
       const c = S.filter(x => x.made && x.t <= sh.t).length, a = S.filter(x => x.t <= sh.t).length;
       if ($('spk').checked) say((sh.made ? 'Cesta. ' : 'Errou. ') + c + ' de ' + a + '.', false);
     }
@@ -2073,7 +2183,7 @@ function liveStop() {
   clearInterval(liveT); liveT = null; if (mk) mkEnd(); calib = null;
   if (!live) return;
   running = false; const end = (performance.now() - startT) / 1000;
-  A.flush(end); A.finalize(); setFeet(); applyGeo();
+  A.flush(end); A.finalize(); setFeet(); setArcs(); applyGeo();
   if (GOAL && liveEnding) while (A.shots.length > GOAL) A.remove(A.shots.length - 1);
   cur.dur = cur.t0 ? (Date.now() - cur.t0) / 1000 : 0;
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
@@ -2127,10 +2237,15 @@ function bodyMetrics(F, t0) {
   const footOf = f => { const ids = [29, 30, 31, 32].filter(i => f.lm[i] && f.lm[i].v > 0.3), U = ids.length ? ids : [27, 28]; return [U.reduce((t, i) => t + f.lm[i].x, 0) / U.length, U.reduce((t, i) => t + f.lm[i].y, 0) / U.length]; };
   const fp = [medN(PL2.map(f => footOf(f)[0])), medN(PL2.map(f => footOf(f)[1]))];
   const hs = PL2.filter(f => f.lm[0].v > 0.5).map(f => (footOf(f)[1] - P(f, 0).y) / 0.93).sort((x, y) => x - y), hStand = hs.length >= 2 ? hs[Math.floor(hs.length * 0.8)] : null;
-  // desenho do esqueleto na soltura (normalizado)
+  // mecânica: tempo de soltura (do ponto mais baixo da mão até soltar), pausa no alto (2 tempos), deslocamento para trás
+  const Wf = F.filter(f => f.t >= t0 - 1.3 && f.t <= R.t), wi = side[2], si = side[0];
+  let di = Wf.length - 1; while (di > 0 && P(Wf[di - 1], wi).y >= P(Wf[di], wi).y - body * 0.01) di--;
+  const tp = Wf.length ? Math.max(0.05, R.t - Wf[di].t) : null;
+  let pz = 0, run = 0; for (let i = Math.max(1, di + 1); i < Wf.length; i++) { const a = Wf[i - 1], b = Wf[i], v = Math.abs(P(b, wi).y - P(a, wi).y) / Math.max(0.02, b.t - a.t) / body; if (P(b, wi).y < P(b, si).y && v < 0.35) { run += b.t - a.t; pz = Math.max(pz, run); } else run = 0; }
+  const hipX = f => (P(f, 23).x + P(f, 24).x) / 2, fd = Wf.length ? Math.abs(hipX(R) - hipX(Wf[di])) / body : null;
   const xs = FIG.map(i => P(R, i).x), ys = FIG.map(i => P(R, i).y), x0 = Math.min(...xs), y0 = Math.min(...ys), sc = Math.max(Math.max(...xs) - x0, Math.max(...ys) - y0) || 1;
   const phh = proc.height || 270;
-  return { f: fp[0] != null ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4)] : null, o: fp[0] != null && hStand ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4), +(hStand / phh).toFixed(4)] : null, h, e: e == null ? null : Math.round(e), k: isFinite(k) ? Math.round(k) : null, j: Math.round(Math.min(90, cm(lift))), r: +relH.toFixed(2), lm: FIG.map(i => [+((P(R, i).x - x0) / sc).toFixed(2), +((P(R, i).y - y0) / sc).toFixed(2)]) };
+  return { tp: tp == null ? null : +tp.toFixed(2), pz: +pz.toFixed(2), fd: fd == null ? null : +fd.toFixed(3), rr: +((base - top(R)) / body).toFixed(3), jr: +(lift / body).toFixed(3), f: fp[0] != null ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4)] : null, o: fp[0] != null && hStand ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4), +(hStand / phh).toFixed(4)] : null, h, e: e == null ? null : Math.round(e), k: isFinite(k) ? Math.round(k) : null, j: Math.round(Math.min(90, cm(lift))), r: +relH.toFixed(2), lm: FIG.map(i => [+((P(R, i).x - x0) / sc).toFixed(2), +((P(R, i).y - y0) / sc).toFixed(2)]) };
 }
 function showBody(s) {
   const b = s && s.body, box = $('fxBody');
@@ -2155,7 +2270,7 @@ async function bodyPass(file, info, cfg) {
   let ok = 0, done = 0;
   for (const s of L2) {
     if (!running && done) break;
-    const tA = s.t - 0.9, tB = s.t + 0.3;
+    const tA = s.t - 1.3, tB = s.t + 0.3;
     let box = A.plBox(tA, tB), crop;
     if (box) { const bw = box[2] - box[0], bh = box[3] - box[1], cxm = (box[0] + box[2]) / 2, cym = (box[1] + box[3]) / 2; const hh = Math.max(bh * 1.5, bw * 1.2, 60), ww = Math.max(bw * 1.6, hh * 0.8); crop = [Math.max(0, cxm - ww / 2), Math.max(0, cym - hh / 2), 0, 0]; crop[2] = Math.min(480 - crop[0], ww); crop[3] = Math.min(FH / k480 - crop[1], hh); }
     else crop = [0, 0, 480, FH / k480];
@@ -2341,7 +2456,7 @@ async function fastAnalyze(file) {
   if (!stopped) { A.flush(info.dur); A.finalize(); } // decide cada arremesso olhando a trajetória completa
   if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
   if (!stopped && $('corpoOn').checked) { running = true; try { const nb = await bodyPass(file, info, cfg); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
-  if (!stopped) { setFeet(); learnFloor(); applyGeo(); renderFloor(); }
+  if (!stopped) { setFeet(); setArcs(); learnFloor(); applyGeo(); renderFloor(); }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
   if (!stopped) $('pFill').style.width = '100%';
