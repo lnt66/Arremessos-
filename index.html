@@ -156,7 +156,7 @@ tr.cur td{background:#2b2012}
         <canvas id="zoomC" class="zoom" hidden></canvas>
         <div class="hud" id="hud" hidden>
           <div class="hudtop"><div><small>Arremessos</small><b id="hudA">0</b></div><div><small>Cestas</small><b id="hudC">0</b></div><div class="pc"><small>Aproveit.</small><b id="hudP">–</b></div><div><small>Sequência</small><b id="hudS">0</b></div><div><small>Tempo</small><b id="hudT">0:00</b></div></div>
-          <div class="hudbot"><div class="hudlast" id="hudL"></div><div class="hudbtns"><button class="hudb" id="hudOk" hidden>✓ Confirmar</button><button class="hudb" id="hudRedo" hidden>Refazer</button><button class="hudb" id="hudMark">◎ Marcar aro</button><button class="hudstop" id="hudStop">■ Parar</button></div></div>
+          <div class="hudbot"><div class="hudlast" id="hudL"></div><div class="hudbtns"><button class="hudb" id="hudOk" hidden>✓ Confirmar</button><button class="hudb" id="hudRedo" hidden>Refazer</button><button class="hudb" id="hudMark">◎ Marcar aro</button><button class="hudb" id="hudFlip">⟲ Câmera</button><button class="hudstop" id="hudStop">■ Parar</button></div></div>
         </div>
       </div>
       <div class="fix" id="fixBar" hidden>
@@ -179,7 +179,7 @@ tr.cur td{background:#2b2012}
       <div class="btns">
         <label class="btn main big pick">Enviar vídeo do celular<input type="file" accept="video/*" id="fOpen" aria-label="Escolher vídeo"></label>
         <button class="big live" id="bLive">● Ao vivo com a câmera</button>
-        <div class="liveopt" id="liveOpt"><span>Série ao vivo:</span><div class="chips" id="goal"><button data-g="0" class="on">Livre</button><button data-g="10">10</button><button data-g="25">25</button><button data-g="50">50</button><button data-g="100">100</button></div>
+        <div class="liveopt" id="liveOpt"><span>Câmera:</span><div class="chips" id="camSide"><button data-c="environment">Traseira</button><button data-c="user">Frontal</button></div><span>Série ao vivo:</span><div class="chips" id="goal"><button data-g="0" class="on">Livre</button><button data-g="10">10</button><button data-g="25">25</button><button data-g="50">50</button><button data-g="100">100</button></div>
           <label class="row"><input type="checkbox" id="spk"> Falar a contagem a cada arremesso</label></div>
         <label class="btn pick alt">Não abriu a galeria? Toque aqui<input type="file" id="fAny" aria-label="Escolher arquivo de vídeo"></label>
         <button id="bStop" hidden>Parar</button>
@@ -1901,11 +1901,28 @@ function hudUpdate() {
   $('hudT').textContent = fmtT((performance.now() - startT) / 1000);
   if (mk || calib) return;
   if (!A.hoop) { $('hudL').innerHTML = (performance.now() - startT > 5000) ? '<span style="color:#ffb347">Não achei o aro: toque em ◎ Marcar aro</span>' : 'Procurando o aro…'; return; }
-  if (!S.length && A.fromPrior && !calOk && !(profile && profile.hoopFixed) && performance.now() - startT > 5000) { $('hudL').innerHTML = 'O círculo azul está no aro? Se não, toque em ◎ Marcar aro'; return; }
+  if (!S.length && A.fromPrior && !calOk && !(liveProfile() && liveProfile().hoopFixed) && performance.now() - startT > 5000) { $('hudL').innerHTML = 'O círculo azul está no aro? Se não, toque em ◎ Marcar aro'; return; }
   const L = S[S.length - 1]; $('hudL').innerHTML = L ? `<span style="color:${L.made ? 'var(--ok)' : 'var(--bad)'}">${L.made ? 'Cesta' : 'Erro'}</span>${L.geo ? ' · ' + L.geo.dist.toFixed(1).replace('.', ',') + ' m' : ''}` : '';
 }
 $('hudStop').onclick = () => liveStop();
-const facing = 'environment';
+let facing = store('arremessos-cam-lado') === 'user' ? 'user' : 'environment';
+const paintCam = () => { for (const b of $('camSide').children) b.classList.toggle('on', b.dataset.c === facing); };
+for (const b of $('camSide').children) b.onclick = () => { facing = b.dataset.c; store('arremessos-cam-lado', facing); paintCam(); };
+paintCam();
+// a câmera frontal fica em outro lugar: o aro dela é guardado à parte
+function frontHoop() { try { return JSON.parse(store('arremessos-aro-frontal') || 'null'); } catch (e) { return null; } }
+function liveProfile() { if (facing !== 'user') return profile; const F = frontHoop(), P = Object.assign({}, profile || {}); P.hoop = F; P.hoopFixed = !!F; return P; }
+function calStart() { calOk = false; const P = liveProfile(); calib = P && P.hoopFixed ? null : { t0: (performance.now() - startT) / 1000, ms: performance.now(), n: 0 }; }
+$('hudFlip').onclick = async e => {
+  e.stopPropagation(); if (!live || mk) return;
+  facing = facing === 'environment' ? 'user' : 'environment'; store('arremessos-cam-lado', facing); paintCam();
+  try {
+    const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
+    if (stream) stream.getTracks().forEach(t => t.stop()); stream = ns; vid.srcObject = ns; await vid.play().catch(() => {});
+  } catch (x) { $('hudL').textContent = 'Não consegui trocar a câmera'; return; }
+  A.setProfile(liveProfile()); A.relearn(); A.reset(); liveSaid = []; calStart(); // outra visão da quadra: placar e calibração recomeçam
+  $('hudL').textContent = facing === 'user' ? 'Câmera frontal' : 'Câmera traseira'; hudUpdate();
+};
 // ---- marcar o aro à mão: imagem congelada, toque na ponta esquerda e na ponta direita do aro
 let mk = null; // { step: 0 perto do aro, 1-2 pontas na lupa }
 function mkMsg(t) { $('hudL').innerHTML = `<span style="color:var(--cyan)">${t}</span>`; }
@@ -1941,7 +1958,9 @@ function mkConfirm() {
   setHoop({ cx: (x0 + x1) / 2 / pw, y: y / ph, w: w / pw, x0: x0 / pw, x1: x1 / pw, top: (y - w * 0.12) / ph, bot: (y + w * 0.12) / ph });
   mkEnd(); calDone('Aro marcado ✓ Pode começar');
 }
-function setHoop(H) { const P = profile || { videos: 0, shots: 0, fixes: 0 }; P.hoop = H; P.hoopFixed = true; P.updated = new Date().toISOString(); profile = P; saveProfile(); A.setProfile(profile); A.relearn(); renderLearn(); }
+function setHoop(H) {
+  if (live && facing === 'user') { store('arremessos-aro-frontal', JSON.stringify(H)); A.setProfile(liveProfile()); A.relearn(); return; }
+  const P = profile || { videos: 0, shots: 0, fixes: 0 }; P.hoop = H; P.hoopFixed = true; P.updated = new Date().toISOString(); profile = P; saveProfile(); A.setProfile(profile); A.relearn(); renderLearn(); }
 $('hudMark').onclick = e => { e.stopPropagation(); if (mk) mkEnd(); else mkStart(); };
 $('hudRedo').onclick = e => { e.stopPropagation(); if (mk) { mk.pts = []; mk.step = 0; mk.z = null; $('zoomC').hidden = true; $('hudOk').hidden = true; $('hudRedo').hidden = true; mkMsg('Toque perto do aro'); } };
 $('hudOk').onclick = e => { e.stopPropagation(); if (mk && mk.pts.length === 2) mkConfirm(); };
@@ -2022,7 +2041,7 @@ async function liveStart() {
   vid.srcObject = stream; vid.removeAttribute('src'); live = true;
   await vid.play().catch(() => {});
   try { wakeL = await navigator.wakeLock.request('screen'); } catch (e) { wakeL = null; }
-  prep(); cur.src = 'Ao vivo'; liveSaid = []; liveEnding = false; calOk = false; calib = (profile && profile.hoopFixed) ? null : { t0: 0, ms: performance.now(), n: 0 }; vid.playbackRate = 1;
+  A.setProfile(liveProfile()); prep(); cur.src = 'Ao vivo'; liveSaid = []; liveEnding = false; calStart(); vid.playbackRate = 1;
   $('bLive').classList.add('on'); $('bLive').textContent = '■ Parar o ao vivo'; $('bStop').hidden = true; $('hud').hidden = false; hudUpdate();
   status('Ao vivo: procurando o aro…', 'warn'); if ($('spk').checked) say(GOAL ? `Série de ${GOAL} arremessos. Pode começar.` : 'Pode começar.', true);
   const lightSamples = []; let t0 = performance.now();
@@ -2061,7 +2080,7 @@ function liveStop() {
   try { wakeL && wakeL.release(); } catch (e) {} wakeL = null;
   live = false; vid.srcObject = null; reviewable = false; $('hud').hidden = true; exitFull();
   $('bLive').classList.remove('on'); $('bLive').textContent = '● Ao vivo com a câmera';
-  render(); saveCur(); commitLearning();
+  render(); saveCur(); if (facing !== 'user') commitLearning(); A.setProfile(profile);
   status('Treino ao vivo salvo: ' + A.shots.length + ' arremessos', 'on');
   if ($('spk').checked) say(summaryText(), true);
 }
