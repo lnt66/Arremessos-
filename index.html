@@ -2076,7 +2076,7 @@ function setFeet() { const ph = proc.height || 270; for (const s of A.shots) { i
 // medido na imagem de referência da sua quadra: horizonte (ponto de fuga das paredes) a 57% da altura e câmera a ~1,27 m do chão
 const FLOOR0 = { y0: 0.573, hc: 1.27 };
 function rimOf(F) { const h = A.hoop; if (!h) return null; const ph = proc.height || 270; return (F.y0 * ph - h.y) / h.w * 0.45 + F.hc; }
-function floorNow() { const F = FLOOR.fit; if (!F) return FLOOR0; const rr = rimOf(F); if (rr != null && Math.abs(rr - 3.05) > 0.6) return FLOOR0; // o aprendido não bate com a altura do aro: fica com a medida da imagem const k = Math.min(1, F.n / 40); return { y0: F.y0 * k + FLOOR0.y0 * (1 - k), hc: F.hc * k + FLOOR0.hc * (1 - k), n: F.n }; }
+function floorNow() { const F = FLOOR.fit; if (!F) return FLOOR0; const rr = rimOf(F); if (rr != null && Math.abs(rr - 3.05) > 0.6) return FLOOR0; /* o aprendido não bate com a altura do aro: fica com a medida da imagem */ const k = Math.min(1, F.n / 40); return { y0: F.y0 * k + FLOOR0.y0 * (1 - k), hc: F.hc * k + FLOOR0.hc * (1 - k), n: F.n }; }
 function floorGeo(ft) {
   const F = floorNow(), h = A.hoop; if (!F || !h || !ft) return null;
   const ph = proc.height || 270, cd = +$('cam').value || 7, f = h.w * cd / 0.45, Dh = cd;
