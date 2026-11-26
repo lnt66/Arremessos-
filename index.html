@@ -133,6 +133,8 @@ tr.cur td{background:#2b2012}
 .hudbot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}.hudstop{pointer-events:auto;margin-left:auto;min-height:52px;padding:0 22px;font:800 20px Barlow,sans-serif;background:#ff4d4d;color:#fff;border:0;border-radius:26px}
 .stage:fullscreen{border-radius:0;border:0;aspect-ratio:auto;width:100vw;height:100vh}.stage:fullscreen .chip{display:none}
 .stage.livefs{position:fixed;inset:0;z-index:100;border-radius:0;aspect-ratio:auto;width:100vw;height:100vh;border:0}
+.liveopt{flex:1 1 100%;display:grid;gap:6px;background:#1b1510;border:1px solid var(--line);border-radius:12px;padding:8px 10px}.liveopt>span{font:600 14px Barlow,sans-serif;color:var(--mute)}.liveopt .chips{margin:0}.liveopt .chips button{flex:1}
+.hudgoal{font-size:.5em;color:#ddd}
 @media(prefers-reduced-motion:reduce){.flash{transition:none}}
 </style>
 </head>
@@ -174,6 +176,8 @@ tr.cur td{background:#2b2012}
       <div class="btns">
         <label class="btn main big pick">Enviar vídeo do celular<input type="file" accept="video/*" id="fOpen" aria-label="Escolher vídeo"></label>
         <button class="big live" id="bLive">● Ao vivo com a câmera</button>
+        <div class="liveopt" id="liveOpt"><span>Série ao vivo:</span><div class="chips" id="goal"><button data-g="0" class="on">Livre</button><button data-g="10">10</button><button data-g="25">25</button><button data-g="50">50</button><button data-g="100">100</button></div>
+          <label class="row"><input type="checkbox" id="spk"> Falar a contagem a cada arremesso</label></div>
         <label class="btn pick alt">Não abriu a galeria? Toque aqui<input type="file" id="fAny" aria-label="Escolher arquivo de vídeo"></label>
         <button id="bStop" hidden>Parar</button>
       </div>
@@ -190,7 +194,7 @@ tr.cur td{background:#2b2012}
         <label>Luz do treino <select id="luz"><option value="auto">Automático (detecta noite sozinho)</option><option value="noite">Noite / pouca luz</option><option value="dia">Dia</option></select></label>
         <label class="row"><input type="checkbox" id="corpoOn" checked> Analisar o corpo: mão do arremesso, salto, braço e joelho (precisa de internet)</label>
         <label class="row"><input type="checkbox" id="somOn"> Analisar também o som (barulho no aro, na tabela, na rede)</label>
-        <label class="row"><input type="checkbox" id="narrOn" checked> Narração em português (resumo falado no fim da análise)</label>
+        <input type="checkbox" id="narrOn" hidden>
         <label class="row"><input type="checkbox" id="dbg"> Mostrar o que a IA está vendo (laranja = bola, azul = aro)</label>
         <label class="row">Distância da câmera até a cesta
           <input type="number" id="cam" min="2" max="20" step="0.5" value="7" inputmode="decimal" style="width:5.5em;font:16px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:40px;padding:0 8px"> m</label>
@@ -1007,7 +1011,6 @@ async function startFile(file) {
   if (!file) return;
   if (live) liveStop();
   lastFile = file; markMode = false; $('markBar').hidden = true; stopNarration(); $('narrBar').hidden = true;
-  if ($('narrOn').checked) say('Analisando o vídeo do treino.', true);
   stopAll(); msg('');
   vid.srcObject = null; if (fileURL) URL.revokeObjectURL(fileURL); fileURL = URL.createObjectURL(file); vid.src = fileURL; live = false;
   vid.onloadeddata = null;
@@ -1875,7 +1878,7 @@ function renderFloor() {
 renderFloor();
 $('bFloorReset').onclick = () => { FLOOR = { obs: [], fit: null }; store('arremessos-chao', JSON.stringify(FLOOR)); A.regeo(); render(); saveCur(); renderFloor(); };
 // ---------- ao vivo com a câmera ----------
-let liveT = null, liveSaid = [], wakeL = null;
+let liveT = null, liveSaid = [], wakeL = null, liveEnding = false;
 async function goFull() {
   const st = $('stage');
   try { if (st.requestFullscreen) await st.requestFullscreen({ navigationUI: 'hide' }); else st.classList.add('livefs'); } catch (e) { st.classList.add('livefs'); }
@@ -1885,11 +1888,16 @@ function exitFull() { try { screen.orientation.unlock(); } catch (e) {} try { if
 function hudUpdate() {
   const S = A.shots.filter(x => liveSaid.some(t => Math.abs(t - x.t) < 1) || x.manual), a = S.length, c = S.filter(x => x.made).length;
   let run = 0; for (let i = S.length - 1; i >= 0 && S[i].made; i--) run++;
-  $('hudA').textContent = a; $('hudC').textContent = c; $('hudP').textContent = a ? Math.round(100 * c / a) + '%' : '–'; $('hudS').textContent = run;
+  $('hudA').innerHTML = GOAL ? `${a}<span class="hudgoal"> / ${GOAL}</span>` : a; $('hudC').textContent = c; $('hudP').textContent = a ? Math.round(100 * c / a) + '%' : '–'; $('hudS').textContent = run;
   $('hudT').textContent = fmtT((performance.now() - startT) / 1000);
   const L = S[S.length - 1]; $('hudL').innerHTML = L ? `<span style="color:${L.made ? 'var(--ok)' : 'var(--bad)'}">${L.made ? 'Cesta' : 'Erro'}</span>${L.geo ? ' · ' + L.geo.dist.toFixed(1).replace('.', ',') + ' m' : ''}` : '';
 }
 $('hudStop').onclick = () => liveStop();
+let GOAL = +(store('arremessos-serie') || 0); $('spk').checked = store('arremessos-falar') === '1';
+$('spk').onchange = e => store('arremessos-falar', e.target.checked ? '1' : '0');
+const paintGoal = () => { for (const b of $('goal').children) b.classList.toggle('on', +b.dataset.g === GOAL); };
+for (const b of $('goal').children) b.onclick = () => { GOAL = +b.dataset.g; store('arremessos-serie', GOAL); paintGoal(); };
+paintGoal();
 async function liveStart() {
   goFull(); // precisa ser logo no toque
   stopNarration(); $('narrBar').hidden = true; markMode = false; $('markBar').hidden = true;
@@ -1899,9 +1907,9 @@ async function liveStart() {
   vid.srcObject = stream; vid.removeAttribute('src'); live = true;
   await vid.play().catch(() => {});
   try { wakeL = await navigator.wakeLock.request('screen'); } catch (e) { wakeL = null; }
-  prep(); cur.src = 'Ao vivo'; liveSaid = []; vid.playbackRate = 1;
+  prep(); cur.src = 'Ao vivo'; liveSaid = []; liveEnding = false; vid.playbackRate = 1;
   $('bLive').classList.add('on'); $('bLive').textContent = '■ Parar o ao vivo'; $('bStop').hidden = true; $('hud').hidden = false; hudUpdate();
-  status('Ao vivo: procurando o aro…', 'warn'); if ($('narrOn').checked) say('Ao vivo. Pode começar.', true);
+  status('Ao vivo: procurando o aro…', 'warn'); if ($('spk').checked) say(GOAL ? `Série de ${GOAL} arremessos. Pode começar.` : 'Pode começar.', true);
   const lightSamples = []; let t0 = performance.now();
   loop();
   clearInterval(liveT);
@@ -1918,9 +1926,10 @@ async function liveStart() {
       if (liveSaid.some(t => Math.abs(t - sh.t) < 1)) continue;
       liveSaid.push(sh.t); flash(sh.made);
       const c = S.filter(x => x.made && x.t <= sh.t).length, a = S.filter(x => x.t <= sh.t).length;
-      if ($('narrOn').checked) say((sh.made ? 'Cesta! ' : 'Errou. ') + c + ' de ' + a + '.', false);
+      if ($('spk').checked) say((sh.made ? 'Cesta. ' : 'Errou. ') + c + ' de ' + a + '.', false);
     }
     render(); saveCur(); hudUpdate();
+    if (GOAL && liveSaid.length >= GOAL && !liveEnding) { liveEnding = true; $('hudL').innerHTML = '<span style="color:var(--cyan)">Série completa!</span>'; setTimeout(liveStop, 2500); }
     status(`Ao vivo · ${S.length} arremessos · ${S.filter(x => x.made).length} cestas · ${fmtT((performance.now() - t0) / 1000)}`, 'on');
   }, 1000);
 }
@@ -1929,6 +1938,7 @@ function liveStop() {
   if (!live) return;
   running = false; const end = (performance.now() - startT) / 1000;
   A.flush(end); A.finalize(); setFeet(); applyGeo();
+  if (GOAL && liveEnding) while (A.shots.length > GOAL) A.remove(A.shots.length - 1);
   cur.dur = cur.t0 ? (Date.now() - cur.t0) / 1000 : 0;
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   try { wakeL && wakeL.release(); } catch (e) {} wakeL = null;
@@ -1936,7 +1946,7 @@ function liveStop() {
   $('bLive').classList.remove('on'); $('bLive').textContent = '● Ao vivo com a câmera';
   render(); saveCur(); commitLearning();
   status('Treino ao vivo salvo: ' + A.shots.length + ' arremessos', 'on');
-  if ($('narrOn').checked) say(summaryText(), true);
+  if ($('spk').checked) say(summaryText(), true);
 }
 $('bLive').onclick = () => { if (live) liveStop(); else liveStart(); };
 // ---------- corpo: reconhece seu esqueleto no momento do arremesso (MediaPipe) ----------
@@ -2203,7 +2213,7 @@ async function fastAnalyze(file) {
   vid.currentTime = 0; octx.clearRect(0, 0, ov.width, ov.height);
   if (failed) msg('Parte do vídeo não pôde ser lida; os arremessos até ali foram contados.');
   render(); saveCur(); if (!stopped) commitLearning(); showDoubt(); showDiag();
-  $('narrBar').hidden = !A.shots.length; if (!stopped && $('narrOn').checked) say(summaryText(), true);
+  $('narrBar').hidden = true;
   return true;
 }
 
