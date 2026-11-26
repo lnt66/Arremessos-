@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contador de Arremessos</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#14100c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -1010,6 +1014,7 @@ function failVid() {
 }
 async function startFile(file) {
   if (!file) return;
+  askNotify();
   if (live) liveStop();
   lastFile = file; markMode = false; $('markBar').hidden = true; stopNarration(); $('narrBar').hidden = true;
   stopAll(); msg('');
@@ -1837,6 +1842,29 @@ function parseMoov(m) {
   }
   return null;
 }
+// ---------- segundo plano: tela ligada, sem travar quando sai do app, aviso no fim ----------
+const yieldNow = () => new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); }); // não é freado quando o app sai da tela
+let wakeA = null, swReg = null;
+async function keepAwake(on) { try { if (on) { if (!wakeA) wakeA = await navigator.wakeLock.request('screen'); } else if (wakeA) { await wakeA.release(); wakeA = null; } } catch (e) { wakeA = null; } }
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').then(r => { swReg = r; }).catch(() => {}); } catch (e) {}
+async function askNotify() { try { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); } catch (e) {} }
+async function notifyDone(title, body) {
+  if (!document.hidden) return;
+  try { if (Notification.permission !== 'granted') return; const r = swReg || await navigator.serviceWorker.ready; await r.showNotification(title, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'arremessos' }); } catch (e) {}
+}
+const baseTitle = document.title;
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) return;
+  if (running && fast) keepAwake(true);
+  if (live) { // voltou para o app no meio do ao vivo: religa a câmera e continua o mesmo treino
+    try { wakeL = await navigator.wakeLock.request('screen'); } catch (e) {}
+    const tr = stream && stream.getVideoTracks()[0];
+    if (!tr || tr.readyState === 'ended' || tr.muted) {
+      try { const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false }); if (stream) stream.getTracks().forEach(t => t.stop()); stream = ns; vid.srcObject = ns; await vid.play().catch(() => {}); } catch (e) {}
+    }
+    if (!document.fullscreenElement) goFull();
+  }
+});
 // ---------- abas ----------
 for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); };
 // ---------- quadra aprendida sozinha: chão pelo seu tamanho na imagem (você tem 1,81 m) ----------
@@ -2073,7 +2101,7 @@ async function bodyPass(file, info, cfg) {
       for (let i = i0; i < S.length; i++) {
         const x = S[i]; if (i > i0 && tm(x) > tB + 0.5) break;
         const buf = await rdB(file, x.off, x.size);
-        while (dec.decodeQueueSize > 8) await new Promise(r => setTimeout(r, 0));
+        while (dec.decodeQueueSize > 8) await yieldNow();
         dec.decode(new EncodedVideoChunk({ type: x.key && i === i0 ? 'key' : x.key ? 'key' : 'delta', timestamp: Math.round(x.cts / ts * 1e6), data: buf }));
       }
       await dec.flush();
@@ -2083,7 +2111,7 @@ async function bodyPass(file, info, cfg) {
     if (m) { if (s.body && s.body.hf) m.h = s.body.h, m.hf = 1; s.body = m; ok++; }
     done++;
     $('pFill').style.width = (100 * done / L2.length).toFixed(1) + '%'; $('pTxt').textContent = `Analisando o seu corpo: arremesso ${done} de ${L2.length}`;
-    await new Promise(r => setTimeout(r, 0));
+    await yieldNow();
   }
   return ok;
 }
@@ -2131,7 +2159,7 @@ async function analyzeAudio(file) {
   const S = au.samples; let i = 0;
   while (i < S.length) { const a = S[i].off; let j = i, end = a; while (j < S.length && S[j].off === end && end - a < 4e6) { end += S[j].size; j++; } if (j === i) { j = i + 1; end = a + S[i].size; }
     const buf = await rdB(file, a, end - a);
-    for (let k = i; k < j; k++) { const x = S[k]; while (dec.decodeQueueSize > 50) await new Promise(r => setTimeout(r, 0)); dec.decode(new EncodedAudioChunk({ type: 'key', timestamp: Math.round(x.t * 1e6), duration: Math.round((x.dur || 0) * 1e6), data: buf.subarray(x.off - a, x.off - a + x.size) })); }
+    for (let k = i; k < j; k++) { const x = S[k]; while (dec.decodeQueueSize > 50) await yieldNow(); dec.decode(new EncodedAudioChunk({ type: 'key', timestamp: Math.round(x.t * 1e6), duration: Math.round((x.dur || 0) * 1e6), data: buf.subarray(x.off - a, x.off - a + x.size) })); }
     i = j; }
   try { await dec.flush(); dec.close(); } catch (e) {}
   for (let k = 0; k < nb; k++) if (C[k]) { E[k] /= C[k]; Hh[k] /= C[k]; }
@@ -2157,7 +2185,7 @@ async function fastAnalyze(file) {
   if (!info) return false;
   const cfg = { codec: info.codec, description: info.desc, codedWidth: info.w, codedHeight: info.h };
   try { const sp = await VideoDecoder.isConfigSupported(cfg); if (!sp.supported) return false; } catch (e) { return false; }
-  prep(); fast = true; vid.hidden = true; demoC.hidden = false;
+  prep(); fast = true; vid.hidden = true; demoC.hidden = false; keepAwake(true);
   cur.dur = info.dur; { const rd = recDate(lastMoov, file); if (rd) cur.date = rd; }
   status('Analisando o vídeo…', 'warn'); $('prog').hidden = false;
   const S = info.samples, n = S.length, ts = info.ts, cts0 = Math.min(...S.slice(0, 64).map(x => x.cts));
@@ -2186,6 +2214,7 @@ async function fastAnalyze(file) {
   const prog = vt => {
     const f = Math.min(1, vt / info.dur), el = (performance.now() - t0w) / 1000, left = f > 0.02 ? el * (1 - f) / f : null;
     $('pFill').style.width = (f * 100).toFixed(1) + '%';
+    document.title = `${Math.round(f * 100)}% · Arremessos`;
     $('pTxt').textContent = `Analisando ${Math.round(f * 100)}% · ${fmtT(vt)} de ${fmtT(info.dur)}` + (left != null ? ` · faltam ~${left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left / 60) + ' min'}` : '');
   };
   const dec = new VideoDecoder({
@@ -2209,7 +2238,7 @@ async function fastAnalyze(file) {
     error: e => { failed = e; }
   });
   try { dec.configure(cfg); } catch (e) { return false; }
-  const wait = () => new Promise(r => setTimeout(r, 0));
+  const wait = yieldNow;
   let i = 0;
   while (i < n && running && !failed) {
     const a = S[i].off; let j = i, end = a;
@@ -2241,7 +2270,8 @@ async function fastAnalyze(file) {
   vid.currentTime = 0; octx.clearRect(0, 0, ov.width, ov.height);
   if (failed) msg('Parte do vídeo não pôde ser lida; os arremessos até ali foram contados.');
   render(); saveCur(); if (!stopped) commitLearning(); showDoubt(); showDiag();
-  $('narrBar').hidden = true;
+  $('narrBar').hidden = true; document.title = baseTitle; keepAwake(false);
+  if (!stopped) { const c = A.shots.filter(x => x.made).length; notifyDone('Análise concluída', `${A.shots.length} arremessos, ${c} cestas (${A.shots.length ? Math.round(100 * c / A.shots.length) : 0}%)`); }
   return true;
 }
 
