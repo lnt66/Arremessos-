@@ -130,6 +130,7 @@ tr.cur td{background:#2b2012}
 .hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px}
 .hudtop{display:flex;gap:6px;justify-content:center}.hudtop div{background:rgba(0,0,0,.62);border-radius:12px;padding:4px 12px;text-align:center;min-width:64px}.hudtop small{display:block;font-size:12px;color:#ddd}.hudtop b{font:800 clamp(26px,5.5vw,54px)/1 "Barlow Condensed",sans-serif;color:#ffb347}.hudtop .pc b{color:var(--cyan)}
 .hudlast{align-self:flex-start;background:rgba(0,0,0,.62);border-radius:12px;padding:6px 12px;font:700 clamp(15px,2.4vw,22px) Barlow,sans-serif;min-height:1em}.hudlast:empty{display:none}
+.hudbtns{display:flex;gap:6px;margin-left:auto;align-items:flex-end}.hudb{pointer-events:auto;min-height:48px;padding:0 14px;font:700 15px Barlow,sans-serif;background:rgba(0,0,0,.65);color:#fff;border:1px solid #fff6;border-radius:24px}.hudb.on{background:var(--cyan);color:#041417}
 .hudbot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}.hudstop{pointer-events:auto;margin-left:auto;min-height:52px;padding:0 22px;font:800 20px Barlow,sans-serif;background:#ff4d4d;color:#fff;border:0;border-radius:26px}
 .stage:fullscreen{border-radius:0;border:0;aspect-ratio:auto;width:100vw;height:100vh}.stage:fullscreen .chip{display:none}
 .stage.livefs{position:fixed;inset:0;z-index:100;border-radius:0;aspect-ratio:auto;width:100vw;height:100vh;border:0}
@@ -153,7 +154,7 @@ tr.cur td{background:#2b2012}
         <div class="flash" id="flash"></div>
         <div class="hud" id="hud" hidden>
           <div class="hudtop"><div><small>Arremessos</small><b id="hudA">0</b></div><div><small>Cestas</small><b id="hudC">0</b></div><div class="pc"><small>Aproveit.</small><b id="hudP">–</b></div><div><small>Sequência</small><b id="hudS">0</b></div><div><small>Tempo</small><b id="hudT">0:00</b></div></div>
-          <div class="hudbot"><div class="hudlast" id="hudL"></div><button class="hudstop" id="hudStop">■ Parar</button></div>
+          <div class="hudbot"><div class="hudlast" id="hudL"></div><div class="hudbtns"><button class="hudb" id="hudMark">◎ Marcar aro</button><button class="hudb" id="hudFlip">⟲ Trocar câmera</button><button class="hudstop" id="hudStop">■ Parar</button></div></div>
         </div>
       </div>
       <div class="fix" id="fixBar" hidden>
@@ -1050,7 +1051,7 @@ function loop() {
 
 function step(mt) {
   const src = demo ? demoC : vid, vw = demo ? 480 : vid.videoWidth, vh = demo ? 270 : vid.videoHeight; if (!vw) return;
-  analyze(src, vw, vh, 0, live ? (performance.now() - startT) / 1000 : mt, !live);
+  analyze(src, vw, vh, 0, live ? (performance.now() - startT) / 1000 : mt, true);
 }
 // ---------- modo noturno: clareia a imagem antes de procurar bola e aro ----------
 let GAIN = null, GAINV = 1;
@@ -1101,7 +1102,7 @@ function analyze(src, vw, vh, rot, t, show) {
     if (e.type === 'camera') status('Câmera mexeu, reaprendendo…', 'warn');
     if (e.type === 'hoopConfirmed') status('Aro da sua quadra confirmado', 'on');
     if (e.type === 'hoopMoved') { status('O aro mudou de lugar na imagem: reaprendendo a quadra', 'warn'); }
-    if (e.type === 'result') { if (show) flash(e.rec.made); render(); saveCur(); }
+    if (e.type === 'result') { if (show && !live) flash(e.rec.made); render(); saveCur(); }
   }
   if (!A.hoop && !fast && (performance.now() - startT) > 5000 && !tapMode) status('Não achei o aro. Melhore a luz ou toque nele na imagem', 'warn');
   // região do aro em resolução cheia (vídeo deitado, sem rotação)
@@ -1406,6 +1407,7 @@ $('rvAgain').onclick = () => { if (rq) playClip(A.shots[rq[rpos]]); };
 $('rvSkip').onclick = () => { rpos++; nextReview(); };
 $('rvEnd').onclick = endReview;
 ov.addEventListener('click', e => {
+  if (live && liveMark) { const r = ov.getBoundingClientRect(), pw = proc.width, ph = proc.height; if (!pw) return; const s2 = Math.min(r.width / pw, r.height / ph), ox = (r.width - pw * s2) / 2, oy = (r.height - ph * s2) / 2; liveMarkAt((e.clientX - r.left - ox) / s2, (e.clientY - r.top - oy) / s2); return; }
   if (markMode && markImg) {
     const r = ov.getBoundingClientRect(), W = markImg.width, H = markImg.height, s = Math.min(r.width / W, r.height / H), ox = (r.width - W * s) / 2, oy = (r.height - H * s) / 2;
     markAt((e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s); return;
@@ -1890,10 +1892,35 @@ function hudUpdate() {
   let run = 0; for (let i = S.length - 1; i >= 0 && S[i].made; i--) run++;
   $('hudA').innerHTML = GOAL ? `${a}<span class="hudgoal"> / ${GOAL}</span>` : a; $('hudC').textContent = c; $('hudP').textContent = a ? Math.round(100 * c / a) + '%' : '–'; $('hudS').textContent = run;
   $('hudT').textContent = fmtT((performance.now() - startT) / 1000);
-  if (!A.hoop) { $('hudL').innerHTML = (performance.now() - startT > 5000) ? '<span style="color:#ffb347">Não achei o aro: toque nele na imagem</span>' : 'Procurando o aro…'; return; }
+  if (liveMark) return;
+  if (!A.hoop) { $('hudL').innerHTML = (performance.now() - startT > 5000) ? '<span style="color:#ffb347">Não achei o aro: toque em ◎ Marcar aro</span>' : 'Procurando o aro…'; return; }
+  if (!S.length && A.fromPrior && performance.now() - startT > 5000) { $('hudL').innerHTML = 'O círculo azul está no aro? Se não, toque em ◎ Marcar aro'; return; }
   const L = S[S.length - 1]; $('hudL').innerHTML = L ? `<span style="color:${L.made ? 'var(--ok)' : 'var(--bad)'}">${L.made ? 'Cesta' : 'Erro'}</span>${L.geo ? ' · ' + L.geo.dist.toFixed(1).replace('.', ',') + ' m' : ''}` : '';
 }
 $('hudStop').onclick = () => liveStop();
+let liveMark = false, facing = store('arremessos-cam-lado') || 'environment';
+$('hudMark').onclick = e => { e.stopPropagation(); liveMark = !liveMark; $('hudMark').classList.toggle('on', liveMark); $('hudL').innerHTML = liveMark ? '<span style="color:var(--cyan)">Toque bem em cima do aro</span>' : ''; };
+$('hudFlip').onclick = async e => {
+  e.stopPropagation(); if (!live) return;
+  facing = facing === 'environment' ? 'user' : 'environment'; store('arremessos-cam-lado', facing);
+  try {
+    const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
+    if (stream) stream.getTracks().forEach(t => t.stop()); stream = ns; vid.srcObject = ns; await vid.play().catch(() => {});
+    A.relearn(); $('hudL').textContent = facing === 'user' ? 'Câmera da frente' : 'Câmera de trás';
+  } catch (x) { $('hudL').textContent = 'Não consegui trocar a câmera'; }
+};
+function liveMarkAt(x, y) { // marca o aro tocando na imagem ao vivo
+  const pw = proc.width, ph = proc.height; if (!pw) return;
+  const img = pctx.getImageData(0, 0, pw, ph), r = A.hoopFromTap(img.data, pw, ph, Math.round(x), Math.round(y));
+  const P = profile || { videos: 0, shots: 0, fixes: 0 };
+  const old = P.hoop, near = old && Math.abs(old.cx - r.hoop.cx) < 0.04 && Math.abs(old.y - r.hoop.y) < 0.05;
+  if (near) P.hoop = old; // tocou no aro que o app já conhecia: mantém a medida completa do anel
+  else { const H = r.hoop; if (H.w < 0.016) { const d = (0.016 - H.w) / 2; H.x0 -= d; H.x1 += d; H.w = 0.016; } P.hoop = H; }
+  P.hoopFixed = true; P.updated = new Date().toISOString(); profile = P; saveProfile();
+  A.setProfile(profile); A.relearn();
+  liveMark = false; $('hudMark').classList.remove('on');
+  $('hudL').innerHTML = `<span style="color:var(--ok)">Aro marcado${r.found ? '' : ' (no ponto tocado)'}</span>`; renderLearn();
+}
 let GOAL = +(store('arremessos-serie') || 0); $('spk').checked = store('arremessos-falar') === '1';
 $('spk').onchange = e => store('arremessos-falar', e.target.checked ? '1' : '0');
 const paintGoal = () => { for (const b of $('goal').children) b.classList.toggle('on', +b.dataset.g === GOAL); };
@@ -1903,7 +1930,7 @@ async function liveStart() {
   goFull(); // precisa ser logo no toque
   stopNarration(); $('narrBar').hidden = true; markMode = false; $('markBar').hidden = true;
   stopAll(); msg('');
-  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false }); }
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false }); }
   catch (e) { exitFull(); msg('A câmera não abriu. Abra o app pelo endereço do GitHub no Chrome e permita o uso da câmera.'); return; }
   vid.srcObject = stream; vid.removeAttribute('src'); live = true;
   await vid.play().catch(() => {});
