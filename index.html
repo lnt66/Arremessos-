@@ -1890,6 +1890,7 @@ function hudUpdate() {
   let run = 0; for (let i = S.length - 1; i >= 0 && S[i].made; i--) run++;
   $('hudA').innerHTML = GOAL ? `${a}<span class="hudgoal"> / ${GOAL}</span>` : a; $('hudC').textContent = c; $('hudP').textContent = a ? Math.round(100 * c / a) + '%' : '–'; $('hudS').textContent = run;
   $('hudT').textContent = fmtT((performance.now() - startT) / 1000);
+  if (!A.hoop) { $('hudL').innerHTML = (performance.now() - startT > 5000) ? '<span style="color:#ffb347">Não achei o aro: toque nele na imagem</span>' : 'Procurando o aro…'; return; }
   const L = S[S.length - 1]; $('hudL').innerHTML = L ? `<span style="color:${L.made ? 'var(--ok)' : 'var(--bad)'}">${L.made ? 'Cesta' : 'Erro'}</span>${L.geo ? ' · ' + L.geo.dist.toFixed(1).replace('.', ',') + ' m' : ''}` : '';
 }
 $('hudStop').onclick = () => liveStop();
