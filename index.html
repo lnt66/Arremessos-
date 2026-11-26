@@ -127,6 +127,12 @@ tr.cur td{background:#2b2012}
 .big.live{flex:1 1 100%;justify-content:center;min-height:52px;font-size:18px;color:#ff6b6b;border-color:#ff6b6b}.big.live.on{background:#ff4d4d;color:#fff;border-color:#ff4d4d}
 #calC{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);touch-action:manipulation;background:#000}.calstep{font:700 16px/1.35 Barlow,sans-serif;color:var(--cyan);margin:8px 0}
 .calin{display:grid;gap:8px;margin:8px 0}.calin input{width:6em;font:16px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:40px;padding:0 8px}
+.hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px}
+.hudtop{display:flex;gap:6px;justify-content:center}.hudtop div{background:rgba(0,0,0,.62);border-radius:12px;padding:4px 12px;text-align:center;min-width:64px}.hudtop small{display:block;font-size:12px;color:#ddd}.hudtop b{font:800 clamp(26px,5.5vw,54px)/1 "Barlow Condensed",sans-serif;color:#ffb347}.hudtop .pc b{color:var(--cyan)}
+.hudlast{align-self:flex-start;background:rgba(0,0,0,.62);border-radius:12px;padding:6px 12px;font:700 clamp(15px,2.4vw,22px) Barlow,sans-serif;min-height:1em}.hudlast:empty{display:none}
+.hudbot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}.hudstop{pointer-events:auto;margin-left:auto;min-height:52px;padding:0 22px;font:800 20px Barlow,sans-serif;background:#ff4d4d;color:#fff;border:0;border-radius:26px}
+.stage:fullscreen{border-radius:0;border:0;aspect-ratio:auto;width:100vw;height:100vh}.stage:fullscreen .chip{display:none}
+.stage.livefs{position:fixed;inset:0;z-index:100;border-radius:0;aspect-ratio:auto;width:100vw;height:100vh;border:0}
 @media(prefers-reduced-motion:reduce){.flash{transition:none}}
 </style>
 </head>
@@ -143,6 +149,10 @@ tr.cur td{background:#2b2012}
         <div class="empty" id="empty"><div><b>Envie o vídeo do treino</b>Ou use o ao vivo com a câmera. O app acha o aro e a bola, conta tudo e aprende a sua quadra.</div></div>
         <div class="chip" id="chip" hidden><span class="dot" id="dot"></span><span id="status">Procurando aro…</span></div>
         <div class="flash" id="flash"></div>
+        <div class="hud" id="hud" hidden>
+          <div class="hudtop"><div><small>Arremessos</small><b id="hudA">0</b></div><div><small>Cestas</small><b id="hudC">0</b></div><div class="pc"><small>Aproveit.</small><b id="hudP">–</b></div><div><small>Sequência</small><b id="hudS">0</b></div><div><small>Tempo</small><b id="hudT">0:00</b></div></div>
+          <div class="hudbot"><div class="hudlast" id="hudL"></div><button class="hudstop" id="hudStop">■ Parar</button></div>
+        </div>
       </div>
       <div class="fix" id="fixBar" hidden>
         <div class="fixtop"><button id="fxPrev" aria-label="Arremesso anterior">◀</button><div id="fxTxt"></div><button id="fxNext" aria-label="Próximo arremesso">▶</button></div>
@@ -231,20 +241,10 @@ tr.cur td{background:#2b2012}
         <div id="evo2"><p class="note">Aparece depois do primeiro treino.</p></div>
       </div>
       <div class="card" data-tab="quadra">
-        <h2>Mapear minha quadra</h2>
-        <p class="note" style="margin-top:0">Para as distâncias ficarem exatas: coloque 4 objetos no chão (tênis, garrafas, cones) formando um retângulo, meça a largura e o comprimento com uma trena e grave uns 5 segundos com a câmera no lugar de sempre. Depois marque os pontos aqui. Só precisa fazer uma vez.</p>
-        <div id="calSt"></div>
-        <div class="btns"><label class="btn main">Escolher o vídeo dos pontos<input type="file" accept="video/*,image/*" id="fCal" hidden></label><button id="bCalLast">Usar o último vídeo analisado</button></div>
-        <div id="calBox" hidden>
-          <p class="calstep" id="calStep"></p>
-          <canvas id="calC" width="480" height="270"></canvas>
-          <div class="calin" id="calIn" hidden>
-            <label>Largura (ponto 1 até 2) <input type="number" id="calW" min="0.5" max="30" step="0.05" inputmode="decimal"> m</label>
-            <label>Comprimento (ponto 1 até 4) <input type="number" id="calL" min="0.5" max="30" step="0.05" inputmode="decimal"> m</label>
-          </div>
-          <div class="btns"><button id="bCalUndo">Desfazer ponto</button><button class="main" id="bCalSave" hidden>Salvar mapa</button></div>
-        </div>
-        <div class="btns"><button class="danger" id="bCalDel" hidden>Apagar mapa da quadra</button></div>
+        <h2>Quadra aprendida</h2>
+        <p class="note" style="margin-top:0">O app aprende o chão da sua quadra sozinho: como você tem 1,81 m, o seu tamanho na imagem em cada lugar mostra a que distância você está. Quanto mais vídeos, mais exatas ficam as distâncias.</p>
+        <div id="floorSt"></div>
+        <div class="btns"><button id="bFloorReset">Reaprender o chão (mudei a câmera)</button></div>
       </div>
       <div class="card" data-tab="quadra">
         <h2>O que o app sabe</h2>
@@ -1185,7 +1185,7 @@ function court() {
   if (viewSess) $('viewTxt').textContent = 'Mostrando o treino de ' + fmtD(viewSess.date);
   // quadra de casa vista de cima: cesta no topo; câmera no flanco escolhido
   const cd = +$('cam').value || 7, f = (+$('ang').value || 0) * Math.PI / 180;
-  const camC = { x: cd * Math.sin(f), y: cd * Math.cos(f) }, RC = COURT ? courtRect() : null;
+  const camC = { x: cd * Math.sin(f), y: cd * Math.cos(f) }, RC = null;
   const span = RC ? Math.max(...RC.map(p => Math.abs(p.x)), 3) + 0.7 : Math.max(cd * Math.abs(Math.sin(f)), 4) + 1, depth = RC ? Math.max(...RC.map(p => p.y), 4) + 0.7 : Math.max(camC.y, 5) + 1;
   const k = Math.min(46 / span, 82 / depth), X = m => 50 + m * k, Y = m => 6 + m * k;
   let g = `<rect x="0" y="0" width="100" height="92" fill="#2a1f15" rx="3"/><g fill="none" stroke="#7a6248" stroke-width=".4">`;
@@ -1704,6 +1704,26 @@ function renderLearn() {
     row('Altura do arco acima do aro', '~' + nf(Q.apex * m) + ' m', true) +
     row('Soltura da bola', '~' + nf(Math.max(1.5, 3.05 - Q.rel * m)) + ' m do chão', true) +
     row('Velocidade de chegada no aro', '~' + nf(Q.vy * m) + ' m/s', true)) : row('Seu arremesso', 'aprende no primeiro vídeo', false);
+  // seu corpo e sua movimentação, de todos os treinos
+  const all = hist.flatMap(h => (h.shots || []).map(unpack)), B = all.filter(x => x.body);
+  const av = f => { const g = B.map(f).filter(v => v != null); return g.length ? g.reduce((t, v) => t + v, 0) / g.length : null; };
+  let extraRows = '';
+  if (B.length) {
+    const nD = B.filter(x => x.body.h === 'D').length, nE = B.filter(x => x.body.h === 'E').length, j = av(x => x.body.j), r = av(x => x.body.r), e = av(x => x.body.e);
+    extraRows += row('Mão que mais usa', nD + nE ? (nD >= nE ? 'direita' : 'esquerda') + ` (${Math.round(100 * Math.max(nD, nE) / (nD + nE))}% dos arremessos)` : '–', nD + nE > 0);
+    if (j != null) extraRows += row('Salto típico', Math.round(j) + ' cm', true);
+    if (r != null) extraRows += row('Altura típica da soltura', nf(r) + ' m', true);
+    if (e != null) extraRows += row('Cotovelo típico na soltura', Math.round(e) + '°', true);
+  }
+  const G = all.filter(x => x.geo);
+  if (G.length >= 10) {
+    const sec = {}; for (const x of G) { const c = toCourt(x.geo), d = Math.hypot(c.x, c.y), k = (c.x < -1.5 ? 'esquerda' : c.x > 1.5 ? 'direita' : 'frente da cesta') + ', ' + (d < 2 ? 'perto' : d < 4 ? '2 a 4 m' : d < 6 ? '4 a 6 m' : 'longe'); (sec[k] = sec[k] || [0, 0]); sec[k][0]++; sec[k][1] += x.made; }
+    const top = Object.entries(sec).sort((a, b) => b[1][0] - a[1][0]).slice(0, 3);
+    extraRows += row('Onde você mais arremessa', top.map(([k, v]) => `${k}: ${Math.round(100 * v[0] / G.length)}% (acerta ${Math.round(100 * v[1] / v[0])}%)`).join('<br>'), true);
+    const best = Object.entries(sec).filter(([, v]) => v[0] >= 8).sort((a, b) => b[1][1] / b[1][0] - a[1][1] / a[1][0])[0];
+    if (best) extraRows += row('Seu melhor lugar', `${best[0]} (${Math.round(100 * best[1][1] / best[1][0])}%)`, true);
+  }
+  if (extraRows) $('me').innerHTML += '<div style="margin-top:6px"></div>' + extraRows;
 }
 $('bForget').onclick = () => {
   if ($('bForget').dataset.arm !== '1') { $('bForget').dataset.arm = '1'; $('bForget').textContent = 'Confirmar: esquecer a quadra'; return; }
@@ -1814,98 +1834,81 @@ function parseMoov(m) {
 }
 // ---------- abas ----------
 for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); };
-// ---------- mapa da quadra: 4 pontos no chão + ponto embaixo do aro => distâncias reais ----------
-let COURT = null; try { COURT = JSON.parse(store('arremessos-quadra') || 'null'); } catch (e) {}
-function homog(src, dst) { // resolve a homografia (imagem -> chão) com 4 pares de pontos
-  const M = [], v = [];
-  for (let i = 0; i < 4; i++) { const [x, y] = src[i], [X, Y] = dst[i]; M.push([x, y, 1, 0, 0, 0, -x * X, -y * X]); v.push(X); M.push([0, 0, 0, x, y, 1, -x * Y, -y * Y]); v.push(Y); }
-  for (let c = 0; c < 8; c++) { let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r; [M[c], M[p]] = [M[p], M[c]]; [v[c], v[p]] = [v[p], v[c]]; if (Math.abs(M[c][c]) < 1e-12) return null;
-    for (let r = 0; r < 8; r++) if (r !== c) { const k = M[r][c] / M[c][c]; for (let q = c; q < 8; q++) M[r][q] -= k * M[c][q]; v[r] -= k * v[c]; } }
-  return v.map((x, i) => x / M[i][i]).concat(1);
-}
-const hApply = (H, [x, y]) => { const w = H[6] * x + H[7] * y + H[8]; return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w]; };
-function courtFrame() { // eixo da quadra: cesta na origem, y para longe da cesta, x para a direita de quem olha para a cesta
-  const C = COURT, H = homog(C.p.slice(0, 4).map(q => [q[0], q[1] * C.ar]), [[0, 0], [C.W, 0], [C.W, C.L], [0, C.L]]); if (!H) return null;
-  const hp = hApply(H, [C.p[4][0], C.p[4][1] * C.ar]), cen = [C.W / 2, C.L / 2]; let ux = cen[0] - hp[0], uy = cen[1] - hp[1]; const n = Math.hypot(ux, uy) || 1; ux /= n; uy /= n;
-  const rx = -uy, ry = ux; // direita do jogador (ele olha para -u)
-  return { H, hp, to: P => { const vx = P[0] - hp[0], vy = P[1] - hp[1]; return { x: vx * rx + vy * ry, y: vx * ux + vy * uy }; } };
-}
-function courtRect() { const F = courtFrame(); if (!F) return null; return [[0, 0], [COURT.W, 0], [COURT.W, COURT.L], [0, COURT.L]].map(F.to); }
-function setFeet() { const ph = proc.height || 270; for (const s of A.shots) { if (s.foot || s.manual) continue; const b = A.plBox(s.t - 0.7, s.t - 0.15); if (b) s.foot = [(b[0] + b[2]) / 2 / 480, b[3] / ph]; } }
-function applyGeo() {
-  if (!COURT) return; const F = courtFrame(); if (!F) return; const ar = COURT.ar;
-  const fo = ((+$('ang').value || 0) * Math.PI / 180), sn = Math.sin(fo), cs = Math.cos(fo);
-  for (const s of A.shots) {
-    const ft = (s.body && s.body.f) || s.foot; if (!ft) continue;
-    const c = F.to(hApply(F.H, [ft[0], ft[1] * ar])), d = Math.hypot(c.x, c.y); if (!isFinite(d) || d > 25) continue;
-    s.geo = { dist: d, dx: c.x * cs - c.y * sn, dz: c.x * sn + c.y * cs, cx: c.x, cy: c.y };
+// ---------- quadra aprendida sozinha: chão pelo seu tamanho na imagem (você tem 1,81 m) ----------
+let FLOOR = { obs: [], fit: null }; try { const f0 = JSON.parse(store('arremessos-chao') || 'null'); if (f0 && f0.obs) FLOOR = f0; } catch (e) {}
+function fitFloor() { // altura do corpo na imagem = a·(y dos pés − horizonte)
+  let O = FLOOR.obs.filter(o => o && o[2] > 0.03); if (O.length < 8) { FLOOR.fit = null; return; }
+  for (let it = 0; it < 3; it++) {
+    const n = O.length, mx = O.reduce((t, o) => t + o[1], 0) / n, my = O.reduce((t, o) => t + o[2], 0) / n;
+    let sxy = 0, sxx = 0; for (const o of O) { sxy += (o[1] - mx) * (o[2] - my); sxx += (o[1] - mx) ** 2; }
+    if (sxx < 1e-6) { FLOOR.fit = null; return; }
+    const a = sxy / sxx, b = my - a * mx, res = O.map(o => Math.abs(o[2] - (a * o[1] + b))), mad = res.slice().sort((x, y) => x - y)[res.length >> 1] || 1e-3;
+    if (it < 2) { const K = O.filter((o, k) => res[k] <= 2.5 * mad + 0.004); if (K.length >= 8) O = K; continue; }
+    const ys = O.map(o => o[1]).sort((x, y) => x - y), span = ys[Math.floor(ys.length * 0.9)] - ys[Math.floor(ys.length * 0.1)];
+    const y0 = -b / a, hc = 1.81 / a;
+    FLOOR.fit = a > 0 && hc > 0.3 && hc < 4 && y0 < ys[0] && span > 0.05 ? { a, b, y0, hc, n: O.length, span } : null;
   }
 }
-// tela de marcação
-let cal = null;
-const CALSTEP = ['Toque no objeto 1: o mais perto da câmera, à esquerda', 'Toque no objeto 2: perto da câmera, à direita', 'Toque no objeto 3: longe, à direita', 'Toque no objeto 4: longe, à esquerda', 'Agora toque no chão bem embaixo do aro (onde a bola cairia se descesse reto do aro)', 'Digite as medidas do retângulo e salve'];
-function calDraw() {
-  const c = $('calC'), x = c.getContext('2d'); if (!cal || !cal.img) return;
-  x.drawImage(cal.img, 0, 0, c.width, c.height);
-  const P = cal.pts.map(q => [q[0] * c.width, q[1] * c.height]), r = Math.max(5, c.width / 90);
-  x.lineWidth = Math.max(2, c.width / 300); x.strokeStyle = '#3fd0e0'; x.beginPath(); P.slice(0, 4).forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); if (P.length >= 4) x.closePath(); x.stroke();
-  x.font = `700 ${Math.round(r * 2.2)}px Barlow, sans-serif`;
-  P.forEach((p, i) => { x.fillStyle = i === 4 ? '#f26b1d' : '#3fd0e0'; x.beginPath(); x.arc(p[0], p[1], r, 0, 7); x.fill(); x.fillStyle = '#fff'; x.fillText(i === 4 ? 'aro' : String(i + 1), p[0] + r * 1.3, p[1] - r * 0.6); });
-  $('calStep').textContent = CALSTEP[Math.min(5, cal.pts.length)];
-  $('calIn').hidden = cal.pts.length < 5; $('bCalSave').hidden = cal.pts.length < 5;
+fitFloor();
+function learnFloor() { // junta o que viu neste vídeo ao que já sabia
+  const add = A.shots.filter(s => s.body && s.body.o).map(s => s.body.o);
+  if (!add.length) return; FLOOR.obs = FLOOR.obs.concat(add).slice(-600); fitFloor(); store('arremessos-chao', JSON.stringify(FLOOR));
 }
-function calStart(img, w, h) {
-  const c = $('calC'), k = Math.min(1, 960 / w); c.width = Math.round(w * k); c.height = Math.round(h * k);
-  cal = { img, pts: [], ar: h / w }; $('calBox').hidden = false;
-  if (COURT) { $('calW').value = COURT.W; $('calL').value = COURT.L; }
-  calDraw(); $('calBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+function setFeet() { const ph = proc.height || 270; for (const s of A.shots) { if (s.foot || s.manual) continue; const b = A.plBox(s.t - 0.7, s.t - 0.15); if (b) s.foot = [(b[0] + b[2]) / 2 / 480, b[3] / ph]; } }
+function floorGeo(ft) {
+  const F = FLOOR.fit, h = A.hoop; if (!F || !h || !ft) return null;
+  const ph = proc.height || 270, cd = +$('cam').value || 7, f = h.w * cd / 0.45, Dh = cd;
+  const dy = (ft[1] - F.y0) * ph; if (dy < 3) return null;
+  const Z = f * F.hc / dy, X = (ft[0] * 480 - 240) * Z / f, Xh = (h.cx - 240) * Dh / f;
+  const dx = X - Xh, dz = Dh - Z, d = Math.hypot(dx, dz);
+  return d < 20 ? { dx, dz, dist: d } : null;
 }
-$('calC').addEventListener('click', e => { if (!cal || cal.pts.length >= 5) return; const r = $('calC').getBoundingClientRect(); cal.pts.push([(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]); calDraw(); });
-$('bCalUndo').onclick = () => { if (cal && cal.pts.length) { cal.pts.pop(); calDraw(); } };
-$('fCal').onchange = e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return; const url = URL.createObjectURL(f);
-  if (f.type.startsWith('image/')) { const im = new Image(); im.onload = () => calStart(im, im.naturalWidth, im.naturalHeight); im.src = url; return; }
-  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
-  v.onloadeddata = () => { v.currentTime = Math.min(1, (v.duration || 2) / 2); };
-  v.onseeked = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); calStart(c, c.width, c.height); };
-  v.onerror = () => msg('Não consegui abrir este vídeo para marcar os pontos.');
-};
-$('bCalLast').onclick = () => { const S = snap0 || snap; if (!S) { $('calSt').innerHTML = '<p class="note">Analise um vídeo primeiro (aba Treino) ou escolha o vídeo dos pontos.</p>'; return; } const c = document.createElement('canvas'); c.width = S.img.width; c.height = S.img.height; c.getContext('2d').putImageData(S.img, 0, 0); calStart(c, c.width, c.height); };
-$('bCalSave').onclick = () => {
-  const W = +String($('calW').value).replace(',', '.'), L = +String($('calL').value).replace(',', '.');
-  if (!(W > 0.3 && L > 0.3)) { $('calStep').textContent = 'Digite a largura e o comprimento em metros (ex.: 4 e 5).'; return; }
-  const old = COURT; COURT = { p: cal.pts, W, L, ar: cal.ar, date: new Date().toISOString() };
-  if (!courtFrame()) { COURT = old; $('calStep').textContent = 'Os pontos ficaram em linha reta. Marque de novo os 4 cantos do retângulo.'; return; }
-  { const F = courtFrame(), far = Math.max(...[[0, 0], [W, 0], [W, L], [0, L]].map(p => Math.hypot(p[0] - F.hp[0], p[1] - F.hp[1]))); if (!(far < 20)) { COURT = old; $('calStep').textContent = 'O ponto embaixo do aro ficou longe demais dos objetos. Confira a ordem dos pontos (1 e 2 perto da câmera, 3 e 4 longe) e toque em Desfazer para marcar de novo.'; return; } }
-  store('arremessos-quadra', JSON.stringify(COURT)); $('calBox').hidden = true; cal = null;
-  applyGeo(); render(); saveCur(); renderCal();
-};
-$('bCalDel').onclick = () => { try { localStorage.removeItem('arremessos-quadra'); } catch (e) {} COURT = null; A.regeo(); render(); saveCur(); renderCal(); };
-function renderCal() {
-  $('bCalDel').hidden = !COURT;
-  if (!COURT) { $('calSt').innerHTML = '<p class="note"><b>Ainda sem mapa:</b> as distâncias são estimadas pelo tamanho do seu corpo na imagem.</p>'; return; }
-  const F = courtFrame(), c = F ? [[0, 0], [COURT.W, 0], [COURT.W, COURT.L], [0, COURT.L]].map(p => Math.hypot(p[0] - F.hp[0], p[1] - F.hp[1])) : [];
-  $('calSt').innerHTML = `<p class="note" style="color:var(--ok)"><b>Mapa salvo</b> (retângulo de ${String(COURT.W).replace('.', ',')} × ${String(COURT.L).replace('.', ',')} m). As distâncias agora são medidas pelos seus pés no chão.</p><p class="note">Confira com a trena: do ponto embaixo do aro até os objetos deu ${c.map((d, i) => `<b>${i + 1}:</b> ${d.toFixed(2).replace('.', ',')} m`).join(' · ')}.</p>`;
+function applyGeo() { if (!FLOOR.fit) return; for (const s of A.shots) { const g = floorGeo((s.body && s.body.f) || s.foot); if (g) s.geo = g; } }
+function renderFloor() {
+  const F = FLOOR.fit, h = A.hoop || (profile && profile.hoop ? { y: profile.hoop.y * (proc.height || 270), w: profile.hoop.w * 480 } : null);
+  if (!F) { $('floorSt').innerHTML = `<p class="note"><b>Aprendendo:</b> ${FLOOR.obs.length} de pelo menos 8 posições suas vistas. Envie vídeos de treino com o reconhecimento do corpo ligado (Ajustes).</p>`; return; }
+  const ph = proc.height || 270, rim = h && h.w ? (F.y0 * ph - h.y) / h.w * 0.45 + F.hc : null;
+  $('floorSt').innerHTML = `<div class="lr"><span>Posições suas estudadas</span><b class="ok">${F.n}</b></div><div class="lr"><span>Altura da câmera (medida)</span><b class="ok">${F.hc.toFixed(2).replace('.', ',')} m</b></div>` +
+    (rim ? `<div class="lr"><span>Altura do aro (conferência; o certo é 3,05 m)</span><b class="${Math.abs(rim - 3.05) < 0.35 ? 'ok' : 'wait'}">${rim.toFixed(2).replace('.', ',')} m</b></div>` : '') +
+    `<p class="note">As distâncias dos arremessos agora são medidas pelos seus pés no chão.</p>`;
 }
-renderCal();
+renderFloor();
+$('bFloorReset').onclick = () => { FLOOR = { obs: [], fit: null }; store('arremessos-chao', JSON.stringify(FLOOR)); A.regeo(); render(); saveCur(); renderFloor(); };
 // ---------- ao vivo com a câmera ----------
 let liveT = null, liveSaid = [], wakeL = null;
+async function goFull() {
+  const st = $('stage');
+  try { if (st.requestFullscreen) await st.requestFullscreen({ navigationUI: 'hide' }); else st.classList.add('livefs'); } catch (e) { st.classList.add('livefs'); }
+  try { await screen.orientation.lock('landscape'); } catch (e) {}
+}
+function exitFull() { try { screen.orientation.unlock(); } catch (e) {} try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} $('stage').classList.remove('livefs'); }
+function hudUpdate() {
+  const S = A.shots.filter(x => liveSaid.some(t => Math.abs(t - x.t) < 1) || x.manual), a = S.length, c = S.filter(x => x.made).length;
+  let run = 0; for (let i = S.length - 1; i >= 0 && S[i].made; i--) run++;
+  $('hudA').textContent = a; $('hudC').textContent = c; $('hudP').textContent = a ? Math.round(100 * c / a) + '%' : '–'; $('hudS').textContent = run;
+  $('hudT').textContent = fmtT((performance.now() - startT) / 1000);
+  const L = S[S.length - 1]; $('hudL').innerHTML = L ? `<span style="color:${L.made ? 'var(--ok)' : 'var(--bad)'}">${L.made ? 'Cesta' : 'Erro'}</span>${L.geo ? ' · ' + L.geo.dist.toFixed(1).replace('.', ',') + ' m' : ''}` : '';
+}
+$('hudStop').onclick = () => liveStop();
 async function liveStart() {
+  goFull(); // precisa ser logo no toque
   stopNarration(); $('narrBar').hidden = true; markMode = false; $('markBar').hidden = true;
   stopAll(); msg('');
   try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false }); }
-  catch (e) { msg('A câmera não abriu. Abra o app pelo endereço do GitHub no Chrome e permita o uso da câmera.'); return; }
+  catch (e) { exitFull(); msg('A câmera não abriu. Abra o app pelo endereço do GitHub no Chrome e permita o uso da câmera.'); return; }
   vid.srcObject = stream; vid.removeAttribute('src'); live = true;
   await vid.play().catch(() => {});
   try { wakeL = await navigator.wakeLock.request('screen'); } catch (e) { wakeL = null; }
   prep(); cur.src = 'Ao vivo'; liveSaid = []; vid.playbackRate = 1;
-  $('bLive').classList.add('on'); $('bLive').textContent = '■ Parar o ao vivo'; $('bStop').hidden = true;
+  $('bLive').classList.add('on'); $('bLive').textContent = '■ Parar o ao vivo'; $('bStop').hidden = true; $('hud').hidden = false; hudUpdate();
   status('Ao vivo: procurando o aro…', 'warn'); if ($('narrOn').checked) say('Ao vivo. Pode começar.', true);
   const lightSamples = []; let t0 = performance.now();
   loop();
   clearInterval(liveT);
+  let tick = 0;
   liveT = setInterval(() => { // a cada 2 s revê tudo com a trajetória completa e narra os lances novos
     if (!running || !live) return;
+    if ((tick++ & 1) === 0) { hudUpdate(); return; }
     if (lightSamples.length < 6 && proc.width) { lightSamples.push(pctx.getImageData(0, 0, proc.width, proc.height).data.slice()); if (lightSamples.length === 6) { const nt = setLight(lightSamples); A.setThr(nt ? 55 * Math.pow(GAINV, 0.25) : 55); if (nt) msg('Modo noturno ligado.'); } }
     const now = (performance.now() - startT) / 1000;
     A.finalize();
@@ -1917,9 +1920,9 @@ async function liveStart() {
       const c = S.filter(x => x.made && x.t <= sh.t).length, a = S.filter(x => x.t <= sh.t).length;
       if ($('narrOn').checked) say((sh.made ? 'Cesta! ' : 'Errou. ') + c + ' de ' + a + '.', false);
     }
-    render(); saveCur();
+    render(); saveCur(); hudUpdate();
     status(`Ao vivo · ${S.length} arremessos · ${S.filter(x => x.made).length} cestas · ${fmtT((performance.now() - t0) / 1000)}`, 'on');
-  }, 2000);
+  }, 1000);
 }
 function liveStop() {
   clearInterval(liveT); liveT = null;
@@ -1929,7 +1932,7 @@ function liveStop() {
   cur.dur = cur.t0 ? (Date.now() - cur.t0) / 1000 : 0;
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   try { wakeL && wakeL.release(); } catch (e) {} wakeL = null;
-  live = false; vid.srcObject = null; reviewable = false;
+  live = false; vid.srcObject = null; reviewable = false; $('hud').hidden = true; exitFull();
   $('bLive').classList.remove('on'); $('bLive').textContent = '● Ao vivo com a câmera';
   render(); saveCur(); commitLearning();
   status('Treino ao vivo salvo: ' + A.shots.length + ' arremessos', 'on');
@@ -1977,9 +1980,11 @@ function bodyMetrics(F, t0) {
   const plant = F.filter(f => f.t <= t0 - 0.3), PL2 = plant.length ? plant : F.slice(0, 3);
   const footOf = f => { const ids = [29, 30, 31, 32].filter(i => f.lm[i] && f.lm[i].v > 0.3), U = ids.length ? ids : [27, 28]; return [U.reduce((t, i) => t + f.lm[i].x, 0) / U.length, U.reduce((t, i) => t + f.lm[i].y, 0) / U.length]; };
   const fp = [medN(PL2.map(f => footOf(f)[0])), medN(PL2.map(f => footOf(f)[1]))];
+  const hs = PL2.filter(f => f.lm[0].v > 0.5).map(f => (footOf(f)[1] - P(f, 0).y) / 0.93).sort((x, y) => x - y), hStand = hs.length >= 2 ? hs[Math.floor(hs.length * 0.8)] : null;
   // desenho do esqueleto na soltura (normalizado)
   const xs = FIG.map(i => P(R, i).x), ys = FIG.map(i => P(R, i).y), x0 = Math.min(...xs), y0 = Math.min(...ys), sc = Math.max(Math.max(...xs) - x0, Math.max(...ys) - y0) || 1;
-  return { f: fp[0] != null ? [+(fp[0] / 480).toFixed(4), +(fp[1] / (proc.height || 270)).toFixed(4)] : null, h, e: e == null ? null : Math.round(e), k: isFinite(k) ? Math.round(k) : null, j: Math.round(Math.min(90, cm(lift))), r: +relH.toFixed(2), lm: FIG.map(i => [+((P(R, i).x - x0) / sc).toFixed(2), +((P(R, i).y - y0) / sc).toFixed(2)]) };
+  const phh = proc.height || 270;
+  return { f: fp[0] != null ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4)] : null, o: fp[0] != null && hStand ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4), +(hStand / phh).toFixed(4)] : null, h, e: e == null ? null : Math.round(e), k: isFinite(k) ? Math.round(k) : null, j: Math.round(Math.min(90, cm(lift))), r: +relH.toFixed(2), lm: FIG.map(i => [+((P(R, i).x - x0) / sc).toFixed(2), +((P(R, i).y - y0) / sc).toFixed(2)]) };
 }
 function showBody(s) {
   const b = s && s.body, box = $('fxBody');
@@ -2190,7 +2195,7 @@ async function fastAnalyze(file) {
   if (!stopped) { A.flush(info.dur); A.finalize(); } // decide cada arremesso olhando a trajetória completa
   if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
   if (!stopped && $('corpoOn').checked) { running = true; try { const nb = await bodyPass(file, info, cfg); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
-  if (!stopped) { setFeet(); applyGeo(); }
+  if (!stopped) { setFeet(); learnFloor(); applyGeo(); renderFloor(); }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
   if (!stopped) $('pFill').style.width = '100%';
