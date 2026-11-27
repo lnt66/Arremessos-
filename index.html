@@ -1129,8 +1129,10 @@ let sel = null, delArm2 = null;
 let demo = null, fast = false, reviewable = false, reviewing = false, fileURL = null, revTimer = null; const demoC = $('demoC'), demoX = demoC.getContext('2d');
 const PK = 'arremessos-perfil';
 // a sua quadra (aprendida no vídeo de referência de 26/11): aro, tamanho da bola; usada até o app aprender com os seus vídeos
-const MY_COURT = {"hoop": {"cx": 0.553, "y": 0.3722, "w": 0.0292, "x0": 0.5396, "x1": 0.5667, "top": 0.363, "bot": 0.3815}, "sizeBias": 0.804, "builtin": true, "videos": 0, "shots": 0, "fixes": 0, "updated": "2026-11-26T00:00:00.000Z", "player": {"n": 62, "flight": 1.014, "vy": 8.35, "apex": 5.028, "rel": 2.903, "vyLo": 4.637, "vyHi": 13.042}};
+const MY_COURT = { "sizeBias": 0.804, "builtin": true, "videos": 0, "shots": 0, "fixes": 0, "updated": "2026-11-26T00:00:00.000Z", "player": {"n": 62, "flight": 1.014, "vy": 8.35, "apex": 5.028, "rel": 2.903, "vyLo": 4.637, "vyHi": 13.042}};
 let profile = (() => { try { return JSON.parse(localStorage.getItem(PK) || 'null'); } catch (e) { return null; } })() || JSON.parse(JSON.stringify(MY_COURT));
+// a câmera mudou de lugar em 27/11 (10,2 m, de frente): o aro guardado da posição antiga não vale mais, uma vez só
+try { if (localStorage.getItem('arremessos-aro-v2') !== '1') { if (profile && profile.hoop && (!profile.hoopFixed || !profile.updated || profile.updated < '2026-11-27T19:30:00Z')) { profile.hoop = null; profile.hoopFixed = false; localStorage.setItem(PK, JSON.stringify(profile)); } localStorage.setItem('arremessos-aro-v2', '1'); } } catch (e) {}
 const camSaved = (() => { try { return +localStorage.getItem('arremessos-cam') || 0; } catch (e) { return 0; } })();
 let A = createAnalyzer({ hfov: 68, camDist: camSaved || 7, profile }), stream = null, running = false, live = false, lastBall = null, trail = [], tapMode = false, startT = 0, foundAt = null;
 const store = (k, v) => { try { v === undefined ? 0 : localStorage.setItem(k, v); return localStorage.getItem(k); } catch (e) { return null; } };
