@@ -3467,19 +3467,32 @@ async function fastAnalyze(file) {
         }
       } finally { fr.close(); done++; lastOutAt = performance.now(); }
   };
-  let lastOutAt = performance.now(), recov = 0, skipped = 0;
+  let lastOutAt = performance.now(), recov = 0, skipped = 0, hard = false, lastFailK = -1, sameFail = 0, pausedMsg = false, lastSave = performance.now();
   const mkDec = () => { const d = new VideoDecoder({ output: onFrame, error: e => { failed = e; } }); d.configure(cfg); return d; };
   let dec; try { dec = mkDec(); } catch (e) { return false; }
   const wait = yieldNow;
   let i = 0;
+  const whenVisible = () => new Promise(r => { if (!document.hidden) return r(); const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); r(); } }; document.addEventListener('visibilitychange', f); });
+  const keyBefore = t => { let k = 0; for (let q = 0; q < n; q++) if (S[q].key && tmS(S[q]) <= t + 0.001) k = q; return k; };
+  // vai até o fim de verdade: se o decodificador cair (celular em segundo plano, memória, trecho estragado), recomeça do quadro-chave antes do último quadro analisado
+  for (;;) {
   while (i < n && running) {
-    if (failed) { // o decodificador falhou num trecho: recomeça no próximo quadro-chave e segue até o fim
-      if (++recov > 12) break;
-      try { dec.close(); } catch (e) {}
-      let k = i + 1; while (k < n && !S[k].key) k++;
-      if (k >= n) break;
-      skipped += tmS(S[k]) - tmS(S[Math.min(i, n - 1)]); i = k; failed = null;
-      try { dec = mkDec(); } catch (e) { failed = e; break; }
+    if (document.hidden) { if (!pausedMsg) { pausedMsg = true; msg('A análise pausou porque o app saiu da tela. Volte para o app que ela continua de onde parou.'); } await whenVisible(); keepAwake(true); }
+    if (pausedMsg && !document.hidden) { pausedMsg = false; msg('Análise continuando de onde parou…'); }
+    if (performance.now() - lastSave > 30000 && A.shots.length) { lastSave = performance.now(); try { saveCur(); } catch (e) {} } // guarda o parcial: um travamento não apaga o que já foi contado
+    if (failed) {
+      recov++; try { dec.close(); } catch (e) {}
+      if (done < 5 && recov >= 3) { hard = true; break; } // não decodifica nada: usa o modo compatível
+      await whenVisible(); await sleep(Math.min(3000, 200 * recov));
+      let k = keyBefore(Math.max(0, nextT - 0.05));
+      if (k === lastFailK) sameFail++; else { sameFail = 0; lastFailK = k; }
+      if (sameFail >= 3) { // o mesmo trecho falhou 3 vezes: está estragado, pula para o próximo quadro-chave
+        let k2 = Math.max(k, i) + 1; while (k2 < n && !S[k2].key) k2++;
+        if (k2 >= n) break;
+        skipped += tmS(S[k2]) - Math.max(0, nextT); nextT = tmS(S[k2]) - 0.01; k = k2; sameFail = 0; lastFailK = k2;
+      }
+      i = k; failed = null;
+      try { dec = mkDec(); } catch (e) { failed = e; if (recov > 400) break; continue; }
       continue;
     }
     const a = S[i].off; let j = i, end = a;
@@ -3497,9 +3510,14 @@ async function fastAnalyze(file) {
     i = j;
     await wait();
   }
-  try { if (!failed && running) await Promise.race([dec.flush(), sleep(20000)]); } catch (e) { failed = failed || e; }
+  if (!failed && running) { try { await Promise.race([dec.flush(), sleep(20000)]); } catch (e) { failed = e; } }
+  // conferência final: se faltou o fim do vídeo (o decodificador caiu no último trecho), volta e completa
+  const lastFr = S.reduce((m, x) => Math.max(m, tmS(x)), 0);
+  if (!hard && running && nextT < lastFr - 0.6 && recov < 400) { if (!failed) failed = new Error('fim incompleto'); i = keyBefore(Math.max(0, nextT - 0.05)); continue; }
+  break;
+  }
   try { dec.close(); } catch (e) {}
-  if (skipped > 0.5) failed = failed || new Error('trechos pulados');
+  failed = hard ? (failed || new Error('sem quadros')) : skipped > 0.5 ? new Error('trechos pulados') : null; if (recov && !skipped && !hard) msg('');
   if (failed && !A.shots.length && done < 5) { running = false; $('prog').hidden = true; keepAwake(false); return false; }
   const stopped = !running;
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
