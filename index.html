@@ -125,7 +125,7 @@ tr.cur td{background:#2b2012}
 .hb{display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}.hb button{min-height:34px;padding:0 10px;font-size:14px}.hb button.sel{background:var(--cyan);color:#041417;border-color:var(--cyan)}
 .tabs{position:sticky;top:0;z-index:20;display:flex;gap:4px;overflow-x:auto;background:var(--bg);padding:6px 0 8px;margin:0 0 10px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
 .tabs button{flex:0 0 auto;min-height:44px;padding:0 6px;font:700 13.5px Barlow,sans-serif;border-radius:22px;white-space:nowrap}.tabs button.on{background:var(--ball);border-color:var(--ball);color:#1a0c03}
-[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"],body[data-t="comp"] [data-tab~="comp"]{display:block}
+[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"],body[data-t="comp"] [data-tab~="comp"],body[data-t="trein"] [data-tab~="trein"]{display:block}
 .side{display:grid;gap:16px;align-content:start}body:not([data-t="treino"]) .grid{grid-template-columns:minmax(0,1fr)}
 .big.live{flex:1 1 100%;justify-content:center;min-height:52px;font-size:18px;color:#ff6b6b;border-color:#ff6b6b}.big.live.on{background:#ff4d4d;color:#fff;border-color:#ff4d4d}
 #calC{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);touch-action:manipulation;background:#000}.calstep{font:700 16px/1.35 Barlow,sans-serif;color:var(--cyan);margin:8px 0}
@@ -145,13 +145,16 @@ tr.cur td{background:#2b2012}
 .cmp{display:grid;gap:8px;margin:8px 0}.cmp .pl{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px}.cmp .pl b{font:800 22px "Barlow Condensed",sans-serif}.cmp .pl .sim{float:right;font:800 26px "Barlow Condensed",sans-serif;color:var(--cyan)}
 .zb{display:grid;grid-template-columns:5.2em 1fr 3.2em;gap:6px;align-items:center;font-size:13px;margin:3px 0}.zb .bar{height:12px;background:#0b0907;border-radius:6px;position:relative;overflow:hidden}.zb .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ball)}.zb .bar u{position:absolute;left:0;top:7px;bottom:0;background:var(--cyan);text-decoration:none}
 .tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.tags span{background:#2a1f12;border:1px solid #6b4a1e;border-radius:99px;padding:4px 10px;font:600 13px Barlow,sans-serif}
+.progs{display:grid;gap:8px;margin:8px 0}.prog2{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px}.prog2 b{font:800 20px "Barlow Condensed",sans-serif}.prog2 small{display:block;color:var(--mute);font-size:13px;line-height:1.35}.prog2 .rec{color:var(--cyan);font-weight:600}.prog2 button{min-height:48px;background:var(--ball);color:#1a0c03;border-color:var(--ball);font-weight:800}
+.pgrow{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}.pgrow select{min-height:42px;font:15px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px}
+.hudprog{position:absolute;left:10px;top:74px;max-width:min(60%,420px);background:rgba(0,0,0,.7);border:1px solid #3fd0e0;border-radius:12px;padding:8px 12px;font:700 clamp(15px,2.6vw,22px)/1.3 Barlow,sans-serif;color:#fff;pointer-events:none}.hudprog small{display:block;font-weight:600;color:#bbb;font-size:.72em}.hudprog .big2{font:800 clamp(22px,4vw,40px)/1 "Barlow Condensed",sans-serif;color:#ffb347}
 @media(prefers-reduced-motion:reduce){.flash{transition:none}}
 </style>
 </head>
 <body data-t="treino">
 <div class="wrap">
   <h1>Contador de <span>Arremessos</span></h1>
-  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="comp">NBA</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
+  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="trein">Treinos</button><button data-t="comp">NBA</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
   <div class="grid">
     <section data-tab="treino">
       <div class="stage" id="stage">
@@ -163,6 +166,7 @@ tr.cur td{background:#2b2012}
         <div class="flash" id="flash"></div>
         <canvas id="zoomC" class="zoom" hidden></canvas>
         <div class="hud" id="hud" hidden>
+          <div class="hudprog" id="hudPg" hidden></div>
           <div class="hudtop"><div><small>Arremessos</small><b id="hudA">0</b></div><div><small>Cestas</small><b id="hudC">0</b></div><div class="pc"><small>Aproveit.</small><b id="hudP">–</b></div><div><small>Sequência</small><b id="hudS">0</b></div><div><small>Tempo</small><b id="hudT">0:00</b></div></div>
           <div class="hudbot"><div class="hudlast" id="hudL"></div><div class="hudbtns"><button class="hudb" id="hudOk" hidden>✓ Confirmar</button><button class="hudb" id="hudRedo" hidden>Refazer</button><button class="hudb" id="hudMark">◎ Marcar aro</button><button class="hudb" id="hudFlip">⟲ Câmera</button><button class="hudstop" id="hudStop">■ Parar</button></div></div>
         </div>
@@ -252,6 +256,22 @@ tr.cur td{background:#2b2012}
         <p class="note" style="margin-top:0">Salva um arquivo com todos os treinos e tudo que o app aprendeu da sua quadra. Use para trocar de celular ou passar para a versão nova.</p>
         <div class="btns"><button id="bExp">Salvar cópia</button><label class="btn" for="fImp">Restaurar cópia</label><input type="file" id="fImp" accept=".json,application/json" hidden></div>
         <div class="btns"><button class="danger" id="bWipe">Apagar todo o histórico</button></div>
+      </div>
+      <div class="card" data-tab="trein">
+        <h2>Treinos guiados ao vivo</h2>
+        <p class="note" style="margin-top:0">Escolha um treino: o app abre a câmera, o treinador fala onde você deve ficar, conta cada arremesso, confere a sua posição pelos pés e avisa quando mudar de lugar.</p>
+        <div class="progs" id="progs"></div>
+        <label class="row"><input type="checkbox" id="pgVoice" checked> Voz do treinador</label>
+        <label class="row"><input type="checkbox" id="pgPos" checked> Conferir minha posição (fora do lugar não conta)</label>
+      </div>
+      <div class="card" data-tab="trein">
+        <h2>Montar o meu treino</h2>
+        <div id="pgBuild"></div>
+        <div class="btns"><button id="pgAdd">+ Posição</button><button class="main" id="pgSaveC">Salvar e começar</button></div>
+      </div>
+      <div class="card" data-tab="trein">
+        <h2>Resultados e recordes</h2>
+        <div id="pgRes"><p class="note">Faça o primeiro treino guiado.</p></div>
       </div>
       <div class="card" data-tab="comp">
         <h2>Seu estilo de jogo</h2>
@@ -2293,7 +2313,8 @@ async function liveStart() {
   try { wakeL = await navigator.wakeLock.request('screen'); } catch (e) { wakeL = null; }
   A.setProfile(liveProfile()); prep(); cur.src = 'Ao vivo'; liveSaid = []; liveEnding = false; calStart(); vid.playbackRate = 1;
   $('bLive').classList.add('on'); $('bLive').textContent = '■ Parar o ao vivo'; $('bStop').hidden = true; $('hud').hidden = false; hudUpdate();
-  status('Ao vivo: procurando o aro…', 'warn'); if ($('spk').checked) say(GOAL ? `Série de ${GOAL} arremessos. Pode começar.` : 'Pode começar.', true);
+  progHud(); if (PROG) pgSay(`${PROG.p.name}. Vou achar o aro primeiro.`, true);
+  status('Ao vivo: procurando o aro…', 'warn'); if ($('spk').checked && !PROG) say(GOAL ? `Série de ${GOAL} arremessos. Pode começar.` : 'Pode começar.', true);
   const lightSamples = []; let t0 = performance.now();
   loop();
   clearInterval(liveT);
@@ -2302,6 +2323,8 @@ async function liveStart() {
     if (!running || !live) return;
     if (mk) return;
     if (calib) { calTick(); return; }
+    if (PROG && !PROG.started) progBegin();
+    progTick();
     if ((tick++ & 1) === 0) { hudUpdate(); return; }
     if (lightSamples.length < 6 && proc.width) { lightSamples.push(pctx.getImageData(0, 0, proc.width, proc.height).data.slice()); if (lightSamples.length === 6) { const nt = setLight(lightSamples); A.setThr(nt ? 55 * Math.pow(GAINV, 0.25) : 55); if (nt) msg('Modo noturno ligado.'); } }
     const now = (performance.now() - startT) / 1000;
@@ -2311,16 +2334,18 @@ async function liveStart() {
       if (sh.manual || now - (sh.ta || sh.t + 1.2) < 1.2) continue;
       if (liveSaid.some(t => Math.abs(t - sh.t) < 1)) continue;
       liveSaid.push(sh.t); flash(sh.made); if ($('bip').checked) beep(sh.made);
+      if (PROG) { try { setFeet(); applyGeo(); } catch (e) {} progShot(A.shots.find(x => x.t === sh.t) || sh); continue; }
       const c = S.filter(x => x.made && x.t <= sh.t).length, a = S.filter(x => x.t <= sh.t).length;
       if ($('spk').checked) say((sh.made ? 'Cesta. ' : 'Errou. ') + c + ' de ' + a + '.', false);
     }
     render(); saveCur(); hudUpdate();
-    if (GOAL && liveSaid.length >= GOAL && !liveEnding) { liveEnding = true; $('hudL').innerHTML = '<span style="color:var(--cyan)">Série completa!</span>'; setTimeout(liveStop, 2500); }
+    if (!PROG && GOAL && liveSaid.length >= GOAL && !liveEnding) { liveEnding = true; $('hudL').innerHTML = '<span style="color:var(--cyan)">Série completa!</span>'; setTimeout(liveStop, 2500); }
     status(`Ao vivo · ${S.length} arremessos · ${S.filter(x => x.made).length} cestas · ${fmtT((performance.now() - t0) / 1000)}`, 'on');
   }, 1000);
 }
 function liveStop() {
   clearInterval(liveT); liveT = null; if (mk) mkEnd(); calib = null;
+  const wasProg = PROG; if (PROG && !PROG.done) progEnd(true); PROG = null; $('hudPg').hidden = true;
   if (!live) return;
   running = false; const end = (performance.now() - startT) / 1000;
   A.flush(end); A.finalize(); camMeasure(); setFeet(); setArcs(); applyGeo();
@@ -2332,9 +2357,114 @@ function liveStop() {
   $('bLive').classList.remove('on'); $('bLive').textContent = '● Ao vivo com a câmera';
   render(); saveCur(); if (facing !== 'user') commitLearning(); A.setProfile(profile);
   status('Treino ao vivo salvo: ' + A.shots.length + ' arremessos', 'on');
-  if ($('spk').checked) say(summaryText(), true);
+  if ($('spk').checked && !wasProg) say(summaryText(), true);
+  if (wasProg) { cur.src = 'Treino: ' + wasProg.p.name; saveCur(); renderProgs(); }
 }
 $('bLive').onclick = () => { if (live) liveStop(); else liveStart(); };
+// ---------- treinos guiados ao vivo ----------
+const SIDES = ['esquerda', 'frente', 'direita'], SIDE_AT = ['na esquerda', 'de frente', 'na direita'], SIDE_TO = ['para a esquerda', 'para a frente da cesta', 'para a direita'], SIDE_UI = ['Esquerda', 'De frente', 'Direita'];
+const DIST = { p: [0.8, 3, 'a 2 metros', 'Perto (2 m)'], m: [3, 5, 'a 4 metros', 'Média (4 m)'], l: [4.8, 8, 'a 6 metros', 'Longe (6 m)'], b: [0, 1.6, 'bandeja', 'Bandeja'], ll: [3.8, 5.4, 'na linha do lance livre', 'Lance livre (4,6 m)'] };
+const ST = (sd, d, n) => ({ sd, d, n });
+const PROGS = [
+  { id: 'volta', name: 'Volta ao mundo', desc: '5 posições ao redor da cesta, 5 arremessos em cada.', mode: 'count', st: [ST(0, 'p', 5), ST(0, 'm', 5), ST(1, 'm', 5), ST(2, 'm', 5), ST(2, 'p', 5)] },
+  { id: 'avance', name: 'Avance quando acertar', desc: 'Mesmas 5 posições: só muda de lugar quando fizer a cesta. Recorde = menos arremessos.', mode: 'make', st: [ST(0, 'p', 10), ST(0, 'm', 10), ST(1, 'm', 10), ST(2, 'm', 10), ST(2, 'p', 10)] },
+  { id: 'll', name: 'Lances livres', desc: '10 arremessos de frente, na distância do lance livre (4,6 m).', mode: 'count', st: [ST(1, 'll', 10)] },
+  { id: 'media', name: 'Média distância', desc: '10 arremessos de cada lado e de frente, a 4 metros.', mode: 'count', st: [ST(0, 'm', 10), ST(1, 'm', 10), ST(2, 'm', 10)] },
+  { id: 'bandeja', name: 'Bandejas', desc: '10 bandejas, de qualquer lado.', mode: 'count', st: [ST(null, 'b', 10)] },
+  { id: 'min', name: '1 minuto', desc: 'Quantas cestas você faz em 60 segundos, de qualquer lugar.', mode: 'time', sec: 60, st: [ST(null, null, 999)] }
+];
+let PROG = null;
+const pgSay = (t, now) => { if ($('pgVoice').checked) say(t, now); };
+const stName = st => (st.sd == null ? '' : SIDE_UI[st.sd] + ', ') + (st.d ? DIST[st.d][2] : 'qualquer lugar');
+function customProg() { try { const c = JSON.parse(store('arremessos-prog-meu') || 'null'); if (c && c.st && c.st.length) return { id: 'meu', name: 'Meu treino', desc: c.st.map(x => `${x.n} ${stName(x)}`).join(' · '), mode: 'count', st: c.st }; } catch (e) {} return null; }
+function allProgs() { const c = customProg(); return c ? PROGS.concat([c]) : PROGS; }
+function progRecs() { try { return JSON.parse(store('arremessos-prog-recs') || '{}'); } catch (e) { return {}; } }
+function recTxt(p) { const r = progRecs()[p.id]; if (!r) return 'Sem recorde ainda'; return p.mode === 'make' ? `Recorde: ${r.v} arremessos` : p.mode === 'time' ? `Recorde: ${r.v} cestas` : `Recorde: ${r.v}%`; }
+function renderProgs() {
+  $('progs').innerHTML = allProgs().map(p => `<div class="prog2"><div><b>${esc(p.name)}</b><small>${esc(p.desc)}</small><small class="rec">${recTxt(p)}</small></div><button data-pg="${p.id}">Começar</button></div>`).join('');
+  for (const b of $('progs').querySelectorAll('button[data-pg]')) b.onclick = () => progStart(allProgs().find(p => p.id === b.dataset.pg));
+  renderPgRes();
+}
+// montar o meu treino
+let BUILD = (customProg() || { st: [ST(0, 'm', 5), ST(1, 'm', 5), ST(2, 'm', 5)] }).st.map(x => ({ ...x }));
+function renderBuild() {
+  $('pgBuild').innerHTML = BUILD.map((x, i) => `<div class="pgrow"><select data-i="${i}" data-k="sd"><option value="">Qualquer lado</option>${SIDE_UI.map((n, k) => `<option value="${k}" ${x.sd === k ? 'selected' : ''}>${n}</option>`).join('')}</select><select data-i="${i}" data-k="d">${Object.entries(DIST).map(([k, v]) => `<option value="${k}" ${x.d === k ? 'selected' : ''}>${v[3]}</option>`).join('')}</select><select data-i="${i}" data-k="n">${[3, 5, 10, 15, 20].map(n => `<option value="${n}" ${x.n === n ? 'selected' : ''}>${n} arremessos</option>`).join('')}</select><button data-del="${i}">✕ Tirar posição</button></div>`).join('') + '<p class="note">Cada bloco é uma posição: lado, distância e quantos arremessos.</p>';
+  for (const el of $('pgBuild').querySelectorAll('select')) el.onchange = () => { const x = BUILD[+el.dataset.i]; x[el.dataset.k] = el.dataset.k === 'n' ? +el.value : el.dataset.k === 'sd' ? (el.value === '' ? null : +el.value) : el.value; };
+  for (const b of $('pgBuild').querySelectorAll('button[data-del]')) b.onclick = () => { BUILD.splice(+b.dataset.del, 1); renderBuild(); };
+}
+$('pgAdd').onclick = () => { BUILD.push(ST(1, 'm', 5)); renderBuild(); };
+$('pgSaveC').onclick = () => { if (!BUILD.length) return; store('arremessos-prog-meu', JSON.stringify({ st: BUILD })); renderProgs(); progStart(customProg()); };
+// rodando
+function progStart(p) {
+  if (!p) return;
+  PROG = { p, i: 0, a: 0, c: 0, out: 0, res: p.st.map(() => ({ a: 0, c: 0, out: 0 })), started: false, t0: 0, done: false };
+  document.body.dataset.t = 'treino'; for (const x of $('tabs').children) x.classList.toggle('on', x.dataset.t === 'treino');
+  liveStart();
+}
+function progBegin() { // chamado quando o aro está pronto
+  if (!PROG || PROG.started) return; PROG.started = true; PROG.t0 = performance.now(); liveSaid = A.shots.map(x => x.t); // o que veio antes não conta no treino
+  const st = PROG.p.st[0];
+  pgSay(PROG.p.mode === 'time' ? `${PROG.p.name}. Valendo! Você tem ${PROG.p.sec} segundos.` : `${PROG.p.name}. Primeira posição: ${stName(st)}. ${PROG.p.mode === 'make' ? 'Acerte para avançar.' : st.n + ' arremessos.'}`, true);
+  progHud();
+}
+function progWhere(sh) { const g = sh.geo; if (!g) return null; const c = toCourt(g); return { side: sideIdx(c), d: g.dist }; }
+function progShot(sh) {
+  if (!PROG || !PROG.started || PROG.done) return;
+  const P = PROG, st = P.p.st[P.i], R = P.res[P.i], w = progWhere(sh);
+  let ok = true;
+  if ($('pgPos').checked && w && P.p.mode !== 'time') { const dOk = !st.d || (w.d >= DIST[st.d][0] - 0.4 && w.d <= DIST[st.d][1] + 0.4), sOk = st.sd == null || w.side === st.sd; ok = dOk && sOk; }
+  if (!ok) { R.out++; P.out++; pgSay(`Fora do lugar: você estava ${w.side != null ? SIDE_AT[w.side] : ''}, a ${w.d.toFixed(1).replace('.', ',')} metros.${st.sd != null && w.side !== st.sd ? ' Vá ' + SIDE_TO[st.sd] + '.' : ''}${st.d && (w.d < DIST[st.d][0] || w.d > DIST[st.d][1]) ? (w.d < DIST[st.d][0] ? ' Mais longe da cesta.' : ' Mais perto da cesta.') : ''}`, false); progHud(); return; }
+  R.a++; R.c += sh.made ? 1 : 0; P.a++; P.c += sh.made ? 1 : 0;
+  if (P.p.mode === 'time') { pgSay(sh.made ? String(P.c) : '', false); progHud(); return; }
+  const next = P.p.mode === 'make' ? (sh.made || R.a >= st.n) : R.a >= st.n;
+  if (!next) { pgSay(P.p.mode === 'make' ? 'Errou. De novo.' : `${sh.made ? 'Cesta' : 'Errou'}. ${R.c} de ${R.a}.`, false); progHud(); return; }
+  if (P.i + 1 < P.p.st.length) {
+    P.i++; const ns = P.p.st[P.i];
+    pgSay(`${P.p.mode === 'make' ? (sh.made ? 'Cesta!' : 'Passou.') : `Posição concluída: ${R.c} de ${R.a}.`} Próxima: ${stName(ns)}.`, false);
+    progHud(); return;
+  }
+  progEnd(false);
+}
+function progTick() { // contagem regressiva do treino de tempo
+  if (!PROG || !PROG.started || PROG.done || PROG.p.mode !== 'time') return;
+  const left = PROG.p.sec - (performance.now() - PROG.t0) / 1000;
+  if (left <= 0) { progEnd(false); return; }
+  const L = Math.ceil(left); if (L !== PROG.lastL) { PROG.lastL = L; if (L === 30 || L === 10) pgSay(`${L} segundos.`, false); else if (L <= 5) pgSay(String(L), true); }
+  progHud();
+}
+function progHud() {
+  const P = PROG, el = $('hudPg'); if (!P) { el.hidden = true; return; } el.hidden = false;
+  if (!P.started) { el.innerHTML = `${esc(P.p.name)}<small>Esperando achar o aro…</small>`; return; }
+  if (P.p.mode === 'time') { const left = Math.max(0, Math.ceil(P.p.sec - (performance.now() - P.t0) / 1000)); el.innerHTML = `${esc(P.p.name)}<br><span class="big2">${left} s</span> · ${P.c} cestas<small>${P.a} arremessos</small>`; return; }
+  const st = P.p.st[P.i], R = P.res[P.i];
+  el.innerHTML = `Posição ${P.i + 1} de ${P.p.st.length}: ${esc(stName(st))}<br><span class="big2">${P.p.mode === 'make' ? R.a + ' tentativa' + (R.a === 1 ? '' : 's') : R.a + ' / ' + st.n}</span> · ${R.c} ${R.c === 1 ? 'cesta' : 'cestas'}<small>Total: ${P.c} de ${P.a}${P.out ? ` · ${P.out} fora do lugar` : ''}</small>`;
+}
+function progEnd(aborted) {
+  const P = PROG; if (!P || P.done) return; P.done = true;
+  if (!aborted && P.started) {
+    const pct = P.a ? Math.round(100 * P.c / P.a) : 0, v = P.p.mode === 'make' ? P.a : P.p.mode === 'time' ? P.c : pct;
+    const recs = progRecs(), old = recs[P.p.id], better = !old || (P.p.mode === 'make' ? v < old.v : v > old.v);
+    if (better && P.a) { recs[P.p.id] = { v, date: new Date().toISOString() }; store('arremessos-prog-recs', JSON.stringify(recs)); }
+    let H = []; try { H = JSON.parse(store('arremessos-prog-hist') || '[]'); } catch (e) {}
+    H.push({ id: P.p.id, name: P.p.name, mode: P.p.mode, date: new Date().toISOString(), a: P.a, c: P.c, out: P.out, st: P.p.st.map((s, i) => ({ n: stName(s), a: P.res[i].a, c: P.res[i].c })) }); store('arremessos-prog-hist', JSON.stringify(H.slice(-40)));
+    pgSay(`Treino concluído! ${P.p.mode === 'make' ? `Você precisou de ${P.a} arremessos.` : P.p.mode === 'time' ? `${P.c} cestas em ${P.p.sec} segundos.` : `${P.c} de ${P.a}, ${pct} por cento.`}${better && P.a ? ' Novo recorde!' : ''}`, true);
+    $('hudL').innerHTML = `<span style="color:var(--cyan)">Treino concluído${better && P.a ? ' · novo recorde!' : ''}</span>`;
+    setTimeout(() => { if (live) liveStop(); }, 3500);
+  }
+  renderProgs();
+}
+function renderPgRes() {
+  let H = []; try { H = JSON.parse(store('arremessos-prog-hist') || '[]'); } catch (e) {}
+  if (!H.length) { $('pgRes').innerHTML = '<p class="note">Faça o primeiro treino guiado.</p>'; return; }
+  const L = H[H.length - 1], dd = d => esc(new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+  let h = `<h3>Último: ${esc(L.name)} · ${dd(L.date)}</h3><div class="scroll"><table class="wk rt"><tbody>${L.st.filter(x => x.a).map(x => `<tr><td>${esc(x.n)}</td><td><b>${x.a ? Math.round(100 * x.c / x.a) + '%' : '–'}</b></td><td><small>${x.c}/${x.a}</small></td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${L.a ? Math.round(100 * L.c / L.a) + '%' : '–'}</b></td><td><small>${L.c}/${L.a}${L.out ? ` · ${L.out} fora` : ''}</small></td></tr></tbody></table></div>`;
+  const ws = {}; for (const x of H) for (const s2 of x.st) { const q = ws[s2.n] = ws[s2.n] || [0, 0]; q[0] += s2.a; q[1] += s2.c; }
+  const E = Object.entries(ws).filter(([, v]) => v[0] >= 5).sort((a, b) => a[1][1] / a[1][0] - b[1][1] / b[1][0]);
+  if (E.length >= 2) h += `<p class="note">Posição mais fraca nos treinos: <b>${esc(E[0][0])}</b> (${Math.round(100 * E[0][1][1] / E[0][1][0])}%). Mais forte: <b>${esc(E[E.length - 1][0])}</b> (${Math.round(100 * E[E.length - 1][1][1] / E[E.length - 1][1][0])}%).</p>`;
+  h += `<h3>Últimos treinos</h3><div class="scroll"><table class="wk rt"><tbody>${H.slice(-8).reverse().map(x => `<tr><td>${esc(x.name)}<br><small style="color:var(--mute)">${dd(x.date)}</small></td><td><b>${x.mode === 'make' ? x.a + ' arr.' : x.mode === 'time' ? x.c + ' cestas' : (x.a ? Math.round(100 * x.c / x.a) + '%' : '–')}</b></td><td><small>${x.c}/${x.a}</small></td></tr>`).join('')}</tbody></table></div>`;
+  $('pgRes').innerHTML = h;
+}
+renderProgs(); renderBuild();
 // ---------- corpo: reconhece seu esqueleto no momento do arremesso (MediaPipe) ----------
 const MPV = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 let POSE = null, poseTs = 0;
