@@ -294,6 +294,9 @@ tr.cur td{background:#2b2012}
         <div class="calin">
           <label>Da cesta até a parede esquerda <input type="number" id="cmL" min="0" max="30" step="0.1" inputmode="decimal"> m</label>
           <label>Da cesta até a parede direita <input type="number" id="cmR" min="0" max="30" step="0.1" inputmode="decimal"> m</label>
+          <label>Altura do aro <input type="number" id="cmH" min="2" max="3.5" step="0.01" inputmode="decimal"> m <small style="color:var(--mute)">(oficial: 3,05)</small></label>
+          <label>Distância da câmera até a cesta <input type="number" id="cmC" min="2" max="25" step="0.1" inputmode="decimal"> m</label>
+          <label class="row"><input type="checkbox" id="cmCA"> Medir a distância sozinho pelo tamanho do aro</label>
           <label>Tabela virada para a esquerda <input type="number" id="cmV" min="0" max="80" step="1" inputmode="numeric"> graus</label>
           <label>Espaço atrás da cesta <input type="number" id="cmB" min="0" max="20" step="0.1" inputmode="decimal"> m</label>
         </div>
@@ -1021,8 +1024,9 @@ function angDeg() { const v = $('ang').value; if (v !== 'auto') return +v || 0; 
 function camMeasure() { // chamado quando o aro está achado
   const h = A.hoop; if (!h || !$('camAuto').checked || !proc.width) return;
   const d = FNORM * proc.width * 0.45 / h.w; if (!(d > 2 && d < 25)) return;
-  camAutoD = d; $('cam').value = d.toFixed(1); A.setCam(d);
+  camAutoD = d; $('cam').value = d.toFixed(1); A.setCam(d); try { syncCam(); } catch (e) {}
 }
+function RIMH() { try { return CM && CM.H ? CM.H : 3.05; } catch (e) { return 3.05; } }
 function toCourt(g) {
   if (g && g.cx != null) return { x: g.cx, y: g.cy };
   const f = angDeg() * Math.PI / 180, sn = Math.sin(f), cs = Math.cos(f);
@@ -1922,7 +1926,7 @@ function renderLearn() {
     row('Arremessos estudados', Q.n, true) +
     row('Tempo de voo da bola', nf(Q.flight) + ' s', true) +
     row('Altura do arco acima do aro', '~' + nf(Q.apex * m) + ' m', true) +
-    row('Soltura da bola', '~' + nf(Math.max(1.5, 3.05 - Q.rel * m)) + ' m do chão', true) +
+    row('Soltura da bola', '~' + nf(Math.max(1.5, RIMH() - Q.rel * m)) + ' m do chão', true) +
     row('Velocidade de chegada no aro', '~' + nf(Q.vy * m) + ' m/s', true)) : row('Seu arremesso', 'aprende no primeiro vídeo', false);
   // seu corpo e sua movimentação, de todos os treinos
   const all = hist.flatMap(h => (h.shots || []).map(unpack)), B = all.filter(x => x.body);
@@ -2089,9 +2093,9 @@ function setArcs() { for (const s of A.shots) { if (!s.arc) s.arc = shotArc(s); 
 function setFeet() { const ph = proc.height || 270; for (const s of A.shots) { if (s.foot || s.manual) continue; const b = A.plBox(s.t - 0.7, s.t - 0.15); if (b) s.foot = [(b[0] + b[2]) / 2 / 480, b[3] / ph]; } }
 // medido na imagem de referência da sua quadra: horizonte (ponto de fuga das paredes) a 57% da altura e câmera a ~1,27 m do chão
 const FLOOR0B = { y0: 0.573, hc: 1.27 };
-const FLOOR0 = { get hc() { return FLOOR0B.hc; }, get y0() { const h = A.hoop, ph = proc.height || 270; return h && h.w ? (h.y + (3.05 - this.hc) * h.w / 0.45) / ph : FLOOR0B.y0; } }; // horizonte calculado pelo aro (3,05 m) e pela altura da câmera
+const FLOOR0 = { get hc() { return FLOOR0B.hc; }, get y0() { const h = A.hoop, ph = proc.height || 270; return h && h.w ? (h.y + (RIMH() - this.hc) * h.w / 0.45) / ph : FLOOR0B.y0; } }; // horizonte calculado pelo aro (3,05 m) e pela altura da câmera
 function rimOf(F) { const h = A.hoop; if (!h) return null; const ph = proc.height || 270; return (F.y0 * ph - h.y) / h.w * 0.45 + F.hc; }
-function floorNow() { const F = FLOOR.fit; if (!F) return FLOOR0; const rr = rimOf(F); if (rr != null && Math.abs(rr - 3.05) > 0.6) return FLOOR0; /* o aprendido não bate com a altura do aro: fica com a medida da imagem */ const k = Math.min(1, F.n / 40); return { y0: F.y0 * k + FLOOR0.y0 * (1 - k), hc: F.hc * k + FLOOR0.hc * (1 - k), n: F.n }; }
+function floorNow() { const F = FLOOR.fit; if (!F) return FLOOR0; const rr = rimOf(F); if (rr != null && Math.abs(rr - RIMH()) > 0.6) return FLOOR0; /* o aprendido não bate com a altura do aro: fica com a medida da imagem */ const k = Math.min(1, F.n / 40); return { y0: F.y0 * k + FLOOR0.y0 * (1 - k), hc: F.hc * k + FLOOR0.hc * (1 - k), n: F.n }; }
 function floorGeo(ft) {
   const F = floorNow(), h = A.hoop; if (!F || !h || !ft) return null;
   const ph = proc.height || 270, cd = +$('cam').value || 7, f = h.w * cd / 0.45, Dh = cd;
@@ -2101,15 +2105,20 @@ function floorGeo(ft) {
   return d < 20 ? { dx, dz, dist: d } : null;
 }
 function applyGeo() { for (const s of A.shots) { const g = floorGeo((s.body && s.body.f) || s.foot); if (g) s.geo = g; } }
-let CM = { L: 4.5, R: 0.3, B: 3.6, V: 25 }; try { CM = Object.assign(CM, JSON.parse(store('arremessos-quadra-medidas') || '{}')); } catch (e) {}
-$('cmL').value = CM.L; $('cmR').value = CM.R; $('cmB').value = CM.B; $('cmV').value = CM.V;
-for (const id of ['cmL', 'cmR', 'cmB', 'cmV']) $(id).onchange = () => { CM = { L: Math.max(0, +String($('cmL').value).replace(',', '.') || 0), R: Math.max(0, +String($('cmR').value).replace(',', '.') || 0), B: Math.max(0, +String($('cmB').value).replace(',', '.') || 0), V: Math.max(0, Math.min(80, +$('cmV').value || 0)) }; store('arremessos-quadra-medidas', JSON.stringify(CM)); court(); };
+let CM = { L: 4.5, R: 0.3, B: 3.6, V: 25, H: 3.05 }; try { CM = Object.assign(CM, JSON.parse(store('arremessos-quadra-medidas') || '{}')); } catch (e) {}
+$('cmH').value = CM.H; $('cmL').value = CM.L; $('cmR').value = CM.R; $('cmB').value = CM.B; $('cmV').value = CM.V;
+for (const id of ['cmL', 'cmR', 'cmB', 'cmV', 'cmH']) $(id).onchange = () => { CM = { L: Math.max(0, +String($('cmL').value).replace(',', '.') || 0), R: Math.max(0, +String($('cmR').value).replace(',', '.') || 0), B: Math.max(0, +String($('cmB').value).replace(',', '.') || 0), V: Math.max(0, Math.min(80, +$('cmV').value || 0)), H: Math.max(2, Math.min(3.5, +String($('cmH').value).replace(',', '.') || 3.05)) }; store('arremessos-quadra-medidas', JSON.stringify(CM)); applyGeo(); render(); saveCur(); renderFloor(); court(); };
+// distância da câmera também na aba Quadra (a mesma dos Ajustes)
+function syncCam() { $('cmC').value = $('cam').value; $('cmCA').checked = $('camAuto').checked; }
+$('cmC').onchange = () => { $('cam').value = String($('cmC').value).replace(',', '.'); $('cam').onchange({ target: $('cam') }); syncCam(); };
+$('cmCA').onchange = () => { $('camAuto').checked = $('cmCA').checked; $('camAuto').onchange({ target: $('camAuto') }); syncCam(); };
 function renderFloor() {
+  syncCam();
   const F = FLOOR.fit, h = A.hoop || (profile && profile.hoop ? { y: profile.hoop.y * (proc.height || 270), w: profile.hoop.w * 480 } : null);
   if (!F) { $('floorSt').innerHTML = `<div class="lr"><span>Altura da câmera</span><b class="ok">${FLOOR0.hc.toFixed(2).replace('.', ',')} m (da imagem de referência)</b></div><p class="note">Distâncias medidas pelos seus pés no chão. O app vai refinando sozinho com o reconhecimento do corpo: ${FLOOR.obs.length} de 8 posições suas vistas.</p>`; return; }
   const ph = proc.height || 270, rim = h && h.w ? (F.y0 * ph - h.y) / h.w * 0.45 + F.hc : null;
   $('floorSt').innerHTML = `<div class="lr"><span>Posições suas estudadas</span><b class="ok">${F.n}</b></div><div class="lr"><span>Altura da câmera (medida)</span><b class="ok">${F.hc.toFixed(2).replace('.', ',')} m</b></div>` +
-    (rim ? `<div class="lr"><span>Altura do aro (conferência; o certo é 3,05 m)</span><b class="${Math.abs(rim - 3.05) < 0.35 ? 'ok' : 'wait'}">${rim.toFixed(2).replace('.', ',')} m</b></div>` : '') +
+    (rim ? `<div class="lr"><span>Altura do aro calculada (conferência; a sua é ${String(RIMH()).replace('.', ',')} m)</span><b class="${Math.abs(rim - RIMH()) < 0.35 ? 'ok' : 'wait'}">${rim.toFixed(2).replace('.', ',')} m</b></div>` : '') +
     `<p class="note">As distâncias dos arremessos agora são medidas pelos seus pés no chão.</p>`;
 }
 renderFloor();
