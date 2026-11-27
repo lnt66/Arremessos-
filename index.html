@@ -227,6 +227,7 @@ tr.cur td{background:#2b2012}
         <h2>Ajustes</h2>
         <label>Luz do treino <select id="luz"><option value="auto">Automático (detecta noite sozinho)</option><option value="noite">Noite / pouca luz</option><option value="dia">Dia</option></select></label>
         <label class="row"><input type="checkbox" id="corpoOn" checked> Analisar o corpo: mão do arremesso, salto, braço e joelho (precisa de internet)</label>
+        <label class="row">Mão dominante <select id="domH"><option value="D">Direita (destro)</option><option value="E">Esquerda (canhoto)</option></select></label>
         <div class="btns"><button id="bPoseT">Testar o reconhecimento do corpo</button></div>
         <div id="poseT" hidden><p class="note" id="poseTxt"></p><canvas id="poseC" style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line)"></canvas></div>
         <input type="checkbox" id="narrOn" hidden>
@@ -1123,6 +1124,7 @@ let A = createAnalyzer({ hfov: 68, camDist: camSaved || 7, profile }), stream = 
 const store = (k, v) => { try { v === undefined ? 0 : localStorage.setItem(k, v); return localStorage.getItem(k); } catch (e) { return null; } };
 $('cam').value = camSaved || 7;
 $('ang').value = store('arremessos-ang-v4') || '0';
+$('domH').value = (store('arremessos-mao') || 'D'); $('domH').onchange = e => { store('arremessos-mao', e.target.value); const n = fixHands(); msg(n ? `Mão refeita em ${n} arremessos (os que você corrigiu ficaram como estavam).` : 'Mão dominante salva.'); };
 $('corpoOn').checked = store('arremessos-corpo') !== '0'; $('corpoOn').onchange = e => store('arremessos-corpo', e.target.checked ? '1' : '0');
 $('luz').value = store('arremessos-luz') || 'auto'; $('luz').onchange = e => store('arremessos-luz', e.target.value);
 // posição no chão da quadra (cesta na origem, quadra para baixo, direita do jogador = +x), a partir da visão da câmera
@@ -1704,16 +1706,16 @@ const lsSave = () => { if (IDB.ok) { clearTimeout(IDB.t); IDB.t = setTimeout(idb
 addEventListener('pagehide', () => { if (IDB.t) idbFlush(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && IDB.t) idbFlush(); });
 async function histInit() { // junta o que estiver guardado (IndexedDB, versão antiga e localStorage) sem perder nada
-  if (!('indexedDB' in window) || !(await idbOpen())) return;
+  if (!('indexedDB' in window) || !(await idbOpen())) { fixHandsOnce(); return; }
   const a = await idbReq('sess', 'readonly', st => st.getAll()), b = await idbReq('kv', 'readonly', st => st.get('historico'));
-  if (!a.ok) { IDB.ok = false; return; }
+  if (!a.ok) { IDB.ok = false; fixHandsOnce(); return; }
   const fromDb = a.v || [], old = Array.isArray(b.v) ? b.v : [], ls = lsLoad(), byId = {};
   for (const h of fromDb.concat(old, ls, hist)) if (h && h.id) byId[h.id] = h;
   hist = Object.values(byId).sort((x, y) => x.date < y.date ? -1 : 1); localHist = hist.slice();
   IDB.saved = new Map(fromDb.map(h => [h.id, byId[h.id] === h ? h : null]));
   await idbFlush();
   if (IDB.ok && IDB.saved.size === hist.length) { if (old.length) await idbReq('kv', 'readwrite', st => st.delete('historico')); try { localStorage.removeItem(LS); } catch (e) {} }
-  renderHist();
+  renderHist(); try { fixHandsOnce(); } catch (e) { console.error(e); }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {} // pede ao navegador para não apagar
 }
 
@@ -3196,6 +3198,18 @@ const handTxt = s => s.body && s.body.h ? (s.body.h === 'D' ? 'Dir.' : 'Esq.') +
 const ang = (a, b, c) => { const v1x = a.x - b.x, v1y = a.y - b.y, v2x = c.x - b.x, v2y = c.y - b.y; const d = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y); return d ? Math.acos(Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / d))) * 180 / Math.PI : null; };
 function medN(a) { const z = a.filter(v => v != null && isFinite(v)).sort((x, y) => x - y); return z.length ? z[z.length >> 1] : null; }
 const FIG = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+const domHand = () => (store('arremessos-mao') || 'D') === 'E' ? 'E' : 'D';
+// refaz a mão dos arremessos guardados (os que você não corrigiu) com a regra nova: a dominante, a não ser que a outra esteja claramente por cima
+function fixHands() {
+  const dom = domHand(), other = dom === 'D' ? 'E' : 'D', k = i => FIG.indexOf(i); let ch = 0;
+  const offW = dom === 'D' ? 15 : 16, domW = dom === 'D' ? 16 : 15, offE = dom === 'D' ? 13 : 14, domE = dom === 'D' ? 14 : 13;
+  const decide = b => { const L = b && b.lm; if (!L) return dom; return L[k(offW)][1] < L[k(domW)][1] - 0.10 && L[k(offE)][1] < L[k(domE)][1] - 0.03 ? other : dom; };
+  for (const h of hist) for (const x of (h.shots || [])) { const b = x[11]; if (!b || b.hf) continue; const nh = decide(b); if (b.h !== nh) { x[11] = Object.assign({}, b, { h: nh }); ch++; } }
+  for (const s of A.shots) if (s.body && !s.body.hf) { const nh = decide(s.body); if (s.body.h !== nh) { s.body = Object.assign({}, s.body, { h: nh }); ch++; } }
+  if (ch) { hist = hist.map(h => ({ ...h })); lsSave(); renderHist(); render(); }
+  return ch;
+}
+function fixHandsOnce() { if (store('arremessos-mao-fix') === '1') return; fixHands(); store('arremessos-mao-fix', '1'); }
 function bodyMetrics(F, t0) {
   F = F.filter(f => f.lm); if (F.length < 4) return null;
   const P = (f, i) => f.lm[i], vis = (f, i) => f.lm[i].v;
@@ -3205,9 +3219,10 @@ function bodyMetrics(F, t0) {
   const relF = F.filter(f => f.t >= t0 - 0.45 && f.t <= t0 + 0.25); if (!relF.length) return null;
   const top = f => Math.min(P(f, 15).y, P(f, 16).y);
   const R = relF.reduce((b, f) => top(f) < top(b) ? f : b); // quadro da soltura: mãos no ponto mais alto
-  const dy = P(R, 16).y - P(R, 15).y, elbDy = P(R, 14).y - P(R, 13).y; // y cresce para baixo
-  let h = null;
-  if (Math.abs(dy) > body * 0.025) h = dy < 0 ? 'D' : 'E'; else if (Math.abs(elbDy) > body * 0.025) h = elbDy < 0 ? 'D' : 'E';
+  // mão: a sua mão dominante, a não ser que a outra esteja claramente por cima (punho e cotovelo) em pelo menos 2 quadros da soltura
+  const dom = domHand(), offW = dom === 'D' ? 15 : 16, domW = dom === 'D' ? 16 : 15, offE = dom === 'D' ? 13 : 14, domE = dom === 'D' ? 14 : 13;
+  const offUp = f => vis(f, 15) > 0.6 && vis(f, 16) > 0.6 && P(f, offW).y < P(f, domW).y - body * 0.10 && P(f, offE).y < P(f, domE).y - body * 0.03;
+  const h = offUp(R) && relF.filter(offUp).length >= 2 ? (dom === 'D' ? 'E' : 'D') : dom;
   const side = h === 'E' ? [11, 13, 15] : [12, 14, 16];
   const e = ang(P(R, side[0]), P(R, side[1]), P(R, side[2]));
   const pre = F.filter(f => f.t >= t0 - 0.9 && f.t <= R.t);
