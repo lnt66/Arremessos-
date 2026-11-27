@@ -398,6 +398,10 @@ tr.cur td{background:#2b2012}
         <div id="evo2"><p class="note">Aparece depois do primeiro treino.</p></div>
       </div>
       <div class="card" data-tab="quadra">
+        <h2>Marcas no chão</h2>
+        <div id="mkSt"></div>
+      </div>
+      <div class="card" data-tab="quadra">
         <h2>Quadra aprendida</h2>
         <p class="note" style="margin-top:0">O app aprende o chão da sua quadra sozinho: como você tem 1,81 m, o seu tamanho na imagem em cada lugar mostra a que distância você está. Quanto mais vídeos, mais exatas ficam as distâncias.</p>
         <div id="floorSt"></div>
@@ -1257,6 +1261,24 @@ function setLight(imgs) {
   for (const d of imgs) boost(d);
   return true;
 }
+let mkImgs = [];
+function hiGrab(src, vw, vh, rot) { // quadro em resolução maior (até 1280) para enxergar linhas finas no chão
+  const dw = rot % 180 ? vh : vw, dh = rot % 180 ? vw : vh, k = Math.min(1, 1280 / dw), W = Math.round(dw * k), H = Math.round(dh * k);
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently: true });
+  if (!rot) x.drawImage(src, 0, 0, W, H); else { if (rot === 90) x.setTransform(0, 1, -1, 0, W, 0); else if (rot === 270) x.setTransform(0, -1, 1, 0, 0, H); else x.setTransform(-1, 0, 0, -1, W, H); if (rot === 180) x.drawImage(src, 0, 0, W, H); else x.drawImage(src, 0, 0, H, W); }
+  return x.getImageData(0, 0, W, H);
+}
+function medImg(L) { const W = L[0].width, H = L[0].height, n = L.length, out = new ImageData(W, H), col = new Uint8Array(n), m = n >> 1; for (let p = 0; p < W * H * 4; p++) { if ((p & 3) === 3) { out.data[p] = 255; continue; } for (let k = 0; k < n; k++) col[k] = L[k].data[p]; col.sort(); out.data[p] = col[m]; } return out; }
+function marksFromImgs(L) { // procura as marcas no fundo limpo do vídeo
+  if (!L || L.length < 3 || !A.hoop) return null; const bg = medImg(L), k = bg.width / 480, h = A.hoop;
+  { // pouca luz: estica as cores do chão (como o modo noturno) antes de procurar as marcas
+    const d = bg.data, W = bg.width, y0 = Math.min(bg.height - 2, Math.round((h.bot + h.w) * k)), hs = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]; let n = 0, sl = 0;
+    for (let y = y0; y < bg.height; y += 2) for (let x = 0; x < W; x += 2) { const p = (y * W + x) * 4; for (let c = 0; c < 3; c++) hs[c][d[p + c]]++; sl += 0.3 * d[p] + 0.59 * d[p + 1] + 0.11 * d[p + 2]; n++; }
+    if (n && sl / n < 95) { const pc = (hh, q) => { let t = 0; for (let v = 0; v < 256; v++) { t += hh[v]; if (t >= q * n) return v; } return 255; }; const lo = hs.map(hh => pc(hh, 0.01)), hi = hs.map(hh => pc(hh, 0.995)), lo2 = Math.min(...lo), hi2 = Math.max(...hi);
+      for (let p = 0; p < d.length; p += 4) for (let c = 0; c < 3; c++) d[p + c] = Math.max(0, Math.min(255, (d[p + c] - lo2) * 230 / Math.max(20, hi2 - lo2))); }
+  }
+  try { const r = detectMarks(bg, { cx: h.cx * k, y: h.y * k, w: h.w * k, bot: h.bot * k }); r.bg = bg; return r; } catch (e) { console.error(e); return { ok: false, why: 'erro na leitura' }; }
+}
 function analyzeDraw(src, vw, vh, rot) {
   const dw = rot % 180 ? vh : vw, dh = rot % 180 ? vw : vh, pw = 480, ph = Math.round(480 * dh / dw);
   if (proc.width !== pw || proc.height !== ph) { proc.width = pw; proc.height = ph; dbgC.width = pw; dbgC.height = ph; pctx.imageSmoothingEnabled = true; pctx.imageSmoothingQuality = 'high'; }
@@ -1450,6 +1472,7 @@ function court() {
 }
 
 try { window.__A = () => A; } catch (e) {}
+try { window.__mk = () => ({ MARKS, marksGeo, detectMarks, mkLast, DBGM }); } catch (e) {}
 try { window.__mv = () => ({ bodyMetrics, classifyShot, poseMoves, ballMoves, geoK, floorNow, floorGeo, toCourt, proc, cam: () => +$('cam').value || 7, angDeg }); } catch (e) {}
 try { window.__arcs = () => arcsSince(0); window.__cands = () => rimCands(); } catch (e) {}
 try { window.__shots = () => A.shots.map(x => ({ t: x.ta ? (x.t + x.ta) / 2 : x.t, made: x.made, p: x.p, f: x.f, occ: x.occ, dn: x.dNear, body: x.body })); } catch (e) {}
@@ -2295,7 +2318,7 @@ $('bForget').onclick = () => {
   $('bForget').dataset.arm = ''; $('bForget').textContent = 'Esquecer a quadra (mudei a câmera)';
   profile = JSON.parse(JSON.stringify(MY_COURT)); saveProfile(); A.relearn(); msg('Voltei para a quadra de referência. Se a câmera mudou de lugar, use "Marcar o aro" depois do próximo vídeo.');
 };
-hist = lsLoad(); renderHist(); histInit();
+hist = lsLoad(); renderHist(); histInit(); try { renderMarks(); } catch (e) {}
 (async () => {
   if (!window.claude || !claude.use) { $('hNote').textContent = 'Histórico guardado neste aparelho.'; return; }
   try {
@@ -2441,7 +2464,142 @@ const FLOOR0B = { y0: 0.573, hc: 1.27 };
 const FLOOR0 = { get hc() { return FLOOR0B.hc; }, get y0() { const h = A.hoop, ph = proc.height || 270; return h && h.w ? (h.y + (RIMH() - this.hc) * h.w / 0.45) / ph : FLOOR0B.y0; } }; // horizonte calculado pelo aro (3,05 m) e pela altura da câmera
 function rimOf(F) { const h = A.hoop; if (!h) return null; const ph = proc.height || 270; return (F.y0 * ph - h.y) / h.w * 0.45 + F.hc; }
 function floorNow() { const F = FLOOR.fit; if (!F) return FLOOR0; const rr = rimOf(F); if (rr != null && Math.abs(rr - RIMH()) > 0.6) return FLOOR0; /* o aprendido não bate com a altura do aro: fica com a medida da imagem */ const k = Math.min(1, F.n / 40); return { y0: F.y0 * k + FLOOR0.y0 * (1 - k), hc: F.hc * k + FLOOR0.hc * (1 - k), n: F.n }; }
+// ---------- marcas no chão (círculos pretos de 2, 4 e 6 m; linha central e divisas laranja): régua exata do chão ----------
+let MARKS = (() => { try { return JSON.parse(store('arremessos-marcas') || 'null'); } catch (e) { return null; } })();
+const MK_R = () => { try { const v = JSON.parse(store('arremessos-marcas-raios') || 'null'); if (Array.isArray(v) && v.length === 3) return v.map(Number); } catch (e) {} return [2, 4, 6]; };
+const MK_A = 25 * Math.PI / 180;
+function solveLin(M, b) { const n = b.length, A2 = M.map((r, i) => [...r, b[i]]); for (let c = 0; c < n; c++) { let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(A2[r][c]) > Math.abs(A2[p][c])) p = r; [A2[c], A2[p]] = [A2[p], A2[c]]; if (Math.abs(A2[c][c]) < 1e-12) return null; for (let r = 0; r < n; r++) if (r !== c) { const k = A2[r][c] / A2[c][c]; for (let q = c; q <= n; q++) A2[r][q] -= k * A2[c][q]; } } return A2.map((r, i) => r[n] / r[i]); }
+function homog(P) { // P: [[x, y, u, v]] chão (m) -> imagem; mínimos quadrados com h33 = 1
+  const N = Array.from({ length: 8 }, () => new Array(8).fill(0)), bb = new Array(8).fill(0);
+  const add = (row, rhs) => { for (let i = 0; i < 8; i++) { bb[i] += row[i] * rhs; for (let j = 0; j < 8; j++) N[i][j] += row[i] * row[j]; } };
+  for (const [x, y, u, v] of P) { add([x, y, 1, 0, 0, 0, -u * x, -u * y], u); add([0, 0, 0, x, y, 1, -v * x, -v * y], v); }
+  const h = solveLin(N, bb); return h ? [...h, 1] : null;
+}
+const hApply = (H, x, y) => { const w = H[6] * x + H[7] * y + H[8]; return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w]; };
+function hInv(H) { const [a, b, c, d, e, f, g, h, i] = H, A0 = e * i - f * h, B0 = -(d * i - f * g), C0 = d * h - e * g, det = a * A0 + b * B0 + c * C0; if (Math.abs(det) < 1e-15) return null; return [A0, -(b * i - c * h), b * f - c * e, B0, a * i - c * g, -(a * f - c * d), C0, -(a * h - b * g), a * e - b * d].map(v => v / det); }
+// procura as marcas numa imagem limpa do fundo (sem você): img = ImageData, hp = aro em pixels desta imagem
+let DBGM = {};
+function detectMarks(img, hp) {
+  DBGM = { hp };
+  const W = img.width, H = img.height, d = img.data, R = MK_R(), lum = (x, y) => { const k = ((y | 0) * W + (x | 0)) * 4; return 0.3 * d[k] + 0.59 * d[k + 1] + 0.11 * d[k + 2]; };
+  const isOr = k => { const r = d[k], g = d[k + 1], b = d[k + 2]; return r > 110 && r - b > 60 && r - g > 25 && g - b > 12; };
+  const y0 = Math.min(H - 10, Math.round(hp.bot + hp.w * 1.0)), pts = [];
+  for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) if (isOr((y * W + x) * 4)) pts.push(x, y);
+  if (pts.length < 40) return { ok: false, why: 'linhas laranja não encontradas' };
+  // Hough: retas laranja finas que passam embaixo do aro
+  const NT = 360, rmax = Math.hypot(W, H), NR = Math.ceil(2 * rmax / 1.5), acc = new Uint32Array(NT * NR), cs = [], sn = [];
+  for (let t = 0; t < NT; t++) { cs.push(Math.cos(t * Math.PI / NT)); sn.push(Math.sin(t * Math.PI / NT)); }
+  const step = Math.max(2, Math.floor(pts.length / 2 / 30000)) * 2;
+  for (let p = 0; p < pts.length; p += step) { const x = pts[p], y = pts[p + 1]; for (let t = 0; t < NT; t++) acc[t * NR + Math.round((x * cs[t] + y * sn[t] + rmax) / 1.5)]++; }
+  const orAt = (x, y) => x >= 0 && y >= 0 && x < W && y < H && isOr(((y | 0) * W + (x | 0)) * 4);
+  const cand = [];
+  for (let it = 0; it < 40; it++) {
+    let best = 0, bi = -1; for (let i = 0; i < acc.length; i++) if (acc[i] > best) { best = acc[i]; bi = i; }
+    if (best < 15) break;
+    const t = Math.floor(bi / NR), rho = (bi % NR) * 1.5 - rmax; for (let dt = -6; dt <= 6; dt++) for (let dr = -6; dr <= 6; dr++) { const tt = (t + dt + NT) % NT, rr = (bi % NR) + dr; if (rr >= 0 && rr < NR) acc[tt * NR + rr] = 0; }
+    const c = cs[t], s = sn[t], dx = -s, dy = c; // direção da reta
+    // pontos sobre a reta (faixa fina) e fora dela (faixa larga): linha pintada é fina
+    let on = 0, off = 0, tmin = 1e9, tmax = -1e9;
+    for (let u = -rmax; u < rmax; u += 1) { const x = c * rho + dx * u, y = s * rho + dy * u; if (y < y0 || y >= H || x < 0 || x >= W) continue; if (orAt(x, y) || orAt(x + c, y + s) || orAt(x - c, y - s)) { on++; tmin = Math.min(tmin, u); tmax = Math.max(tmax, u); } if (orAt(x + 7 * c, y + 7 * s) && orAt(x - 7 * c, y - 7 * s)) off++; }
+    if (on < 25 || off > on * 0.35 || tmax - tmin < 40) continue;
+    if (cand.some(q => Math.abs(Math.abs(q.c * c + q.s * s) - 1) < 0.004 && Math.abs(Math.abs(q.rho) - Math.abs(rho)) < 14)) continue; // a mesma linha de novo
+    cand.push({ c, s, rho, on, dx, dy });
+  }
+  // o ponto embaixo do aro: onde 2 ou 3 retas se cruzam, abaixo do aro e quase na vertical dele
+  const inter = (a, b) => { const det = a.c * b.s - a.s * b.c; if (Math.abs(det) < 0.05) return null; return [(a.rho * b.s - b.rho * a.s) / det, (a.c * b.rho - b.c * a.rho) / det]; };
+  let bestSet = null;
+  for (let i = 0; i < cand.length; i++) for (let j = i + 1; j < cand.length; j++) {
+    const X = inter(cand[i], cand[j]); if (!X || X[1] < hp.bot || X[1] > H || Math.abs(X[0] - hp.cx) > hp.w * 2.5) continue;
+    if (Math.abs(cand[i].c * cand[j].c + cand[i].s * cand[j].s) > 0.985) continue;
+    const set = [cand[i], cand[j]];
+    for (let k = 0; k < cand.length; k++) if (k !== i && k !== j && Math.abs(cand[k].c * cand[i].c + cand[k].s * cand[i].s) < 0.985 && Math.abs(cand[k].c * cand[j].c + cand[k].s * cand[j].s) < 0.985) { const Y = inter(cand[i], cand[k]); if (Y && Math.hypot(Y[0] - X[0], Y[1] - X[1]) < Math.max(6, hp.w * 0.3)) { set.push(cand[k]); break; } }
+    const sc = set.length * 1e6 + set.reduce((t, l) => t + l.on, 0);
+    if (!bestSet || sc > bestSet.sc) bestSet = { set, X, sc };
+  }
+  if (!bestSet) return { ok: false, why: 'as linhas laranja não se cruzam embaixo do aro' };
+  // X: mínimos quadrados das retas
+  { let a11 = 0, a12 = 0, a22 = 0, b1 = 0, b2 = 0; for (const l of bestSet.set) { a11 += l.c * l.c; a12 += l.c * l.s; a22 += l.s * l.s; b1 += l.c * l.rho; b2 += l.s * l.rho; } const det = a11 * a22 - a12 * a12; if (Math.abs(det) > 1e-9) bestSet.X = [(b1 * a22 - b2 * a12) / det, (a11 * b2 - a12 * b1) / det]; }
+  const X = bestSet.X; DBGM.X = X; DBGM.cand = cand.length; DBGM.W = img.width;
+  // direção de cada raio: para baixo (para o lado da câmera)
+  const rays = bestSet.set.map(l => { let dx = l.dx, dy = l.dy; if (dy < 0) { dx = -dx; dy = -dy; } return { dx, dy, l, ang: Math.atan2(dx, dy) }; }).sort((a, b) => a.ang - b.ang);
+  // papel de cada raio: central = o mais perto da vertical do meio; esquerda/direita pelos lados
+  let roles; if (rays.length === 3) roles = [-1, 0, 1]; else { const i0 = Math.abs(rays[0].ang) < Math.abs(rays[1].ang) ? 0 : 1; roles = rays.map((r, i) => i === i0 ? 0 : (r.ang < rays[i0].ang ? -1 : 1)); if (Math.abs(rays[0].ang - rays[1].ang) < 0.05) return { ok: false, why: 'só uma linha laranja' }; }
+  // cruzamentos com os círculos pretos ao longo de cada raio
+  const RR = [];
+  for (let k = 0; k < rays.length; k++) {
+    const r = rays[k], nx = -r.dy, ny = r.dx, runs = []; let inRun = null;
+    for (let u = hp.w * 0.8; ; u += 0.5) {
+      const x = X[0] + r.dx * u, y = X[1] + r.dy * u; if (x < 9 || y < 0 || x >= W - 9 || y >= H - 1) break;
+      // o círculo cruza o raio: compara o ponto com o chão antes e depois dele, ao longo do raio, logo ao lado da linha laranja
+      const sl = (o, sd) => lum(x + r.dx * o + nx * sd, y + r.dy * o + ny * sd);
+      const side = Math.min(sl(0, 3), sl(0, -3)), ref = Math.min(...[3, -3].map(sd => [-20, -16, -12, 12, 16, 20].map(o => sl(o, sd)).sort((a, b) => a - b)[3]));
+      if (ref - side > 28 && side < 105) { if (!inRun) inRun = { a: u, b: u }; else inRun.b = u; } else if (inRun) { if (inRun.b - inRun.a < 30) runs.push((inRun.a + inRun.b) / 2); inRun = null; }
+    }
+    // bordas da mesma faixa preta viram um cruzamento só
+    for (let q = runs.length - 1; q > 0; q--) if (runs[q] - runs[q - 1] < 14) { runs[q - 1] = (runs[q - 1] + runs[q]) / 2; runs.splice(q, 1); }
+    (DBGM.runs = DBGM.runs || []).push({ role: roles[k], ang: +(r.ang * 180 / Math.PI).toFixed(1), runs: runs.map(u => +u.toFixed(1)) });
+    // hipóteses: dois cruzamentos seguidos que obedecem à perspectiva (o de 4 m fica 2 a 6 vezes mais longe do ponto que o de 2 m); o 3º é previsto
+    const hyp = runs.map(u => ({ u: [u] }));
+    for (let a = 0; a < runs.length; a++) for (let b = a + 1; b < runs.length; b++) {
+      const A0 = runs[a], B0 = runs[b], q = B0 / A0; if (q < 1.9 || q > 6) continue;
+      const be = (A0 * R[1] / R[0] - B0) / (R[1] * (B0 - A0)), al = A0 * (1 + be * R[0]) / R[0], dn = 1 + be * R[2], u3 = dn > 0.05 ? al * R[2] / dn : null;
+      const c3 = u3 ? runs.find(u => Math.abs(u - u3) < Math.max(3, u3 * 0.06)) : null;
+      hyp.push({ u: c3 ? [A0, B0, c3] : [A0, B0] });
+    }
+    RR.push({ r, role: roles[k], hyp: hyp.sort((x, y) => y.u.length - x.u.length).slice(0, 14) });
+  }
+  const pt = (rk, i, u) => { const ang = rk.role * MK_A, rr = R[i]; return [rr * Math.sin(ang), rr * Math.cos(ang), (X[0] + rk.r.dx * u) / W, (X[1] + rk.r.dy * u) / H]; };
+  const fitErr = P2 => { const Hm2 = homog(P2); if (!Hm2) return null; const E2 = P2.map(p => { const q = hApply(Hm2, p[0], p[1]); return Math.hypot((q[0] - p[2]) * W, (q[1] - p[3]) * H); }); return { Hm: Hm2, E: E2, m: E2.reduce((t, e) => t + e, 0) / E2.length }; };
+  let best = null; const X0 = [0, 0, X[0] / W, X[1] / H], fits = [];
+  const rec = (k, acc) => {
+    if (k === RR.length) { if (acc.length < 5) return; const f2 = fitErr(acc); if (!f2 || Math.max(...f2.E) > 5) return; const sc = f2.m + 6 / acc.length; fits.push({ sc, P: acc.slice(), f: f2 }); return; }
+    rec(k + 1, acc);
+    for (const h of RR[k].hyp) rec(k + 1, acc.concat(h.u.map((u, i) => pt(RR[k], i, u))));
+  };
+  rec(0, [X0]);
+  // conferência: os círculos previstos pela conta têm que cair em cima da tinta preta
+  const cover = Hm2 => { let n = 0, hit = 0; for (const rr of R) { let prev = null; for (let t = -80; t <= 80; t += 2) { const a = t * Math.PI / 180, q = hApply(Hm2, rr * Math.sin(a), rr * Math.cos(a)), x = q[0] * W, y = q[1] * H; if (prev && x > 12 && y > X[1] + 4 && x < W - 12 && y < H - 12) { let nx = -(y - prev[1]), ny = x - prev[0]; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l; const L0 = Math.min(lum(x, y), lum(x + nx, y + ny), lum(x - nx, y - ny)), ref = [-12, -9, -6, 6, 9, 12].map(o => lum(x + nx * o, y + ny * o)).sort((u, v) => u - v)[3]; n++; if (ref - L0 > 20) hit++; } prev = [x, y]; } } return n >= 15 ? hit / n : 0; };
+  fits.sort((a, b) => a.sc - b.sc); for (const fz of fits.slice(0, 60)) { fz.cov = cover(fz.f.Hm); if (!best || fz.cov - 0.02 * fz.f.m > best.cov - 0.02 * best.f.m) best = fz; }
+  DBGM.cov = best && best.cov;
+  if (best && best.cov < 0.35) return { ok: false, why: 'os círculos pretos não batem com a conta' };
+  if (!best) return { ok: false, why: 'círculos pretos não encontrados (ou não batem com o desenho)' };
+  const Hm = best.f.Hm, err = best.f.m; DBGM.E = best.f.E.map(e => +e.toFixed(1)); DBGM.P = best.P;
+  const found = best.P.slice(1);
+  const Hi = hInv(Hm); if (!Hi) return { ok: false, why: 'conta não fechou' };
+  // a câmera tem que ficar na frente (y positivo) e o chão "para baixo" na imagem
+  if (hApply(Hm, 0, R[0])[1] <= hApply(Hm, 0, 0)[1]) return { ok: false, why: 'desenho invertido' };
+  return { ok: true, H: Hm, Hi, X: [X[0] / W, X[1] / H], rays: rays.length, cross: found.length, err: +err.toFixed(2), rad: R };
+}
+function marksGeo(ft) { // ponto da imagem (0–1) -> chão em metros, com a origem embaixo do aro
+  if (!MARKS || !MARKS.Hi) return null; const p = hApply(MARKS.Hi, ft[0], ft[1]); if (!isFinite(p[0]) || !isFinite(p[1])) return null;
+  const dist = Math.hypot(p[0], p[1]); return dist < 20 ? { dx: p[0], dz: p[1], dist, cx: p[0], cy: p[1], mk: 1 } : null;
+}
+function setMarks(r, hoop) {
+  if (r && r.ok) { try { mkPicture(r); } catch (e) {} MARKS = { H: r.H, Hi: r.Hi, X: r.X, rays: r.rays, cross: r.cross, err: r.err, rad: r.rad, hoop: hoop ? { cx: hoop.cx / 480, y: hoop.y / (proc.height || 270), w: hoop.w / 480 } : null, date: new Date().toISOString() }; store('arremessos-marcas', JSON.stringify(MARKS)); }
+  else if (MARKS && MARKS.hoop && hoop) { const same = Math.abs(MARKS.hoop.cx * 480 - hoop.cx) < hoop.w * 0.5 && Math.abs(MARKS.hoop.y * (proc.height || 270) - hoop.y) < hoop.w * 0.5; if (!same) { MARKS = null; store('arremessos-marcas', 'null'); } } // a câmera mudou: as marcas antigas não valem
+  try { renderMarks(r); } catch (e) {}
+}
+function mkPicture(r) { // foto da quadra com o desenho que a conta encontrou por cima, para você conferir
+  const bg = r.bg; if (!bg) return; const c = document.createElement('canvas'), k = Math.min(1, 640 / bg.width); c.width = Math.round(bg.width * k); c.height = Math.round(bg.height * k);
+  const t = document.createElement('canvas'); t.width = bg.width; t.height = bg.height; t.getContext('2d').putImageData(bg, 0, 0); const x = c.getContext('2d'); x.drawImage(t, 0, 0, c.width, c.height);
+  const P = (a, b) => { const q = hApply(r.H, a, b); return [q[0] * c.width, q[1] * c.height]; };
+  x.lineWidth = 2; x.setLineDash([6, 4]); x.strokeStyle = '#3fd0e0';
+  for (const rr of r.rad) { x.beginPath(); for (let t2 = -88; t2 <= 88; t2 += 2) { const a = t2 * Math.PI / 180, q = P(rr * Math.sin(a), rr * Math.cos(a)); if (t2 === -88) x.moveTo(q[0], q[1]); else x.lineTo(q[0], q[1]); } x.stroke(); }
+  x.setLineDash([]); x.fillStyle = '#3fd0e0'; const o = P(0, 0); x.beginPath(); x.arc(o[0], o[1], 5, 0, 7); x.fill();
+  try { store('arremessos-marcas-img', c.toDataURL('image/jpeg', 0.7)); } catch (e) {}
+  delete r.bg;
+}
+let mkLast = null;
+function renderMarks(r) {
+  if (r !== undefined) mkLast = r; const el = $('mkSt'); if (!el) return;
+  const R = MK_R().map(v => String(v).replace('.', ',')).join(', ');
+  const pic = MARKS ? store('arremessos-marcas-img') : null;
+  el.innerHTML = MARKS ? `${pic ? `<img src="${pic}" alt="Sua quadra com os círculos encontrados" style="width:100%;border-radius:10px;margin:4px 0"><p class="note">Em azul tracejado: os círculos que o app calculou. Eles devem cair em cima dos seus círculos pretos.</p>` : ''}<p class="ok">✓ Marcas achadas: ${MARKS.rays} ${MARKS.rays === 1 ? 'linha laranja' : 'linhas laranja'} e ${MARKS.cross} cruzamentos com os círculos (erro ${String(MARKS.err).replace('.', ',')} px). As distâncias e os lados vêm das marcas.</p>` : `<p class="note">${mkLast && !mkLast.ok ? '✗ Não achei as marcas no último vídeo: ' + mkLast.why + '. ' : ''}Sem marcas: as distâncias são estimadas pelo aro e pelo seu tamanho na imagem.</p>`;
+  el.innerHTML += `<p class="note">Círculos medidos: ${R} m. Se pintou com outras medidas, ajuste aqui: <input id="mkR" value="${MK_R().join(' ')}" style="width:90px" inputmode="decimal"> <button id="mkRs">Salvar</button></p>`;
+  $('mkRs').onclick = () => { const v = String($('mkR').value).replace(/,/g, '.').split(/[\s;/]+/).map(Number).filter(x => x > 0.5 && x < 10); if (v.length === 3) { store('arremessos-marcas-raios', JSON.stringify(v.sort((a, b) => a - b))); msg('Medidas salvas: valem a partir do próximo vídeo.'); renderMarks(); } else msg('Digite as três medidas, por exemplo: 2 4 6'); };
+}
 function floorGeo(ft) {
+  if (MARKS && ft) { const g = marksGeo(ft); if (g) return g; }
   const F = floorNow(), h = A.hoop; if (!F || !h || !ft) return null;
   const ph = proc.height || 270, cd = +$('cam').value || 7, f = h.w * cd / 0.45, Dh = cd;
   const dy = (ft[1] - F.y0) * ph; if (dy < 3) return null;
@@ -2687,7 +2845,12 @@ function calPersist() {
   return out;
 }
 let calOk = false;
+async function liveMarks() { // ao vivo: junta alguns quadros (você se mexendo some na mediana) e procura as marcas
+  const L = []; for (let i = 0; i < 7 && live && vid.videoWidth; i++) { try { L.push(hiGrab(vid, vid.videoWidth, vid.videoHeight, 0)); } catch (e) {} await sleep(450); }
+  if (!live || L.length < 5) return; const r = marksFromImgs(L); setMarks(r, A.hoop); if (MARKS) { try { applyGeo(); render(); } catch (e) {} }
+}
 function calDone(text, kept) { // aro confirmado no mesmo lugar: os arremessos da calibração também contam
+  setTimeout(() => { liveMarks().catch(() => {}); }, 300);
   const h = A.hoop, h0 = calib && calib.h0, W = proc.width || 480, H = proc.height || 270;
   const same = kept || (h && h0 && Math.abs(h.cx / W - h0.cx) < h0.w * 0.5 && Math.abs(h.y / H - h0.y) < h0.w * 0.5 * W / H);
   calib = null; calOk = true; setTimeout(camMeasure, 300); if (!same) { A.reset(); liveSaid = []; } $('hudL').innerHTML = `<span style="color:var(--ok)">${text}</span>`; if ($('spk').checked) say('Aro encontrado. Pode começar.', true); }
@@ -3548,8 +3711,8 @@ async function fastAnalyze(file) {
     const keys = []; let lastK = -1e9;
     for (let i = 0; i < n && keys.length < 15; i++) if (S[i].key && (S[i].cts - cts0) / ts - lastK >= Math.max(2, info.dur / 15)) { keys.push(i); lastK = (S[i].cts - cts0) / ts; }
     if (keys.length >= 5) {
-      const imgs = [];
-      const kd = new VideoDecoder({ output: fr => { try { if (imgs.length < 20) { analyzeDraw(fr, fr.displayWidth, fr.displayHeight, info.rot); imgs.push(pctx.getImageData(0, 0, proc.width, proc.height).data.slice()); } } finally { fr.close(); } }, error: () => {} });
+      const imgs = []; mkImgs = [];
+      const kd = new VideoDecoder({ output: fr => { try { if (imgs.length < 20) { analyzeDraw(fr, fr.displayWidth, fr.displayHeight, info.rot); imgs.push(pctx.getImageData(0, 0, proc.width, proc.height).data.slice()); if (mkImgs.length < 11) mkImgs.push(hiGrab(fr, fr.displayWidth, fr.displayHeight, info.rot)); } } finally { fr.close(); } }, error: () => {} });
       kd.configure(cfg);
       for (const i of keys) { const x = S[i], buf = await rdB(file, x.off, x.size); kd.decode(new EncodedVideoChunk({ type: 'key', timestamp: Math.round(x.cts / ts * 1e6), data: buf })); }
       await kd.flush(); kd.close();
@@ -3644,6 +3807,7 @@ async function fastAnalyze(file) {
   const stopped = !running;
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
   if (!stopped) { try { A.flush(info.dur); A.finalize(); applyPend(); } catch (e) { console.error(e); } } pendFx = []; // decide cada arremesso olhando a trajetória completa
+  if (!stopped) { try { const had = !!MARKS, mr = marksFromImgs(mkImgs); setMarks(mr, A.hoop); if (mr && mr.ok && !had) setTimeout(() => msg('Achei as marcas no chão: agora a distância e o lado de cada arremesso vêm delas. Confira o desenho na aba Quadra.'), 1500); } catch (e) { console.error(e); } mkImgs = []; }
   if (!stopped) for (const fn of [camMeasure, setFeet, setArcs, learnFloor, applyGeo, classifyAll, renderFloor]) { try { fn(); } catch (e) { console.error(e); } }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
