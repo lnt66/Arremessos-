@@ -133,6 +133,8 @@ tr.cur td{background:#2b2012}
 .calin{display:grid;gap:8px;margin:8px 0}.calin input{width:6em;font:16px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:40px;padding:0 8px}
 .hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px}
 .hudtop{display:flex;gap:6px;justify-content:center}.hudtop div{background:rgba(0,0,0,.62);border-radius:12px;padding:4px 12px;text-align:center;min-width:64px}.hudtop small{display:block;font-size:12px;color:#ddd}.hudtop b{font:800 clamp(26px,5.5vw,54px)/1 "Barlow Condensed",sans-serif;color:#ffb347}.hudtop .pc b{color:var(--cyan)}
+/* placar no canto esquerdo, pequeno: o meio de cima fica livre para o aro e a bola */
+.hudtop{flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:4px;align-self:flex-start}.hudtop div{padding:2px 8px;min-width:56px;border-radius:9px}.hudtop small{font-size:10px}.hudtop b{font-size:clamp(18px,3.6vw,30px)!important}.hud.mk .hudtop{display:none}
 .hudlast{align-self:flex-start;background:rgba(0,0,0,.62);border-radius:12px;padding:6px 12px;font:700 clamp(15px,2.4vw,22px) Barlow,sans-serif;min-height:1em}.hudlast:empty{display:none}
 .hudbtns{display:flex;gap:6px;margin-left:auto;align-items:flex-end}.hudb{pointer-events:auto;min-height:48px;padding:0 14px;font:700 15px Barlow,sans-serif;background:rgba(0,0,0,.65);color:#fff;border:1px solid #fff6;border-radius:24px}.hudb.on{background:var(--cyan);color:#041417}
 .stage canvas.zoom{position:absolute;z-index:5;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);height:78%;aspect-ratio:1;width:auto;object-fit:fill;border:3px solid var(--cyan);border-radius:12px;background:#000;touch-action:manipulation;cursor:crosshair}
@@ -241,7 +243,7 @@ tr.cur td{background:#2b2012}
           <select id="ang"><option value="0">Quase de frente para a tabela (sua nova posição)</option><option value="auto">Encostada na parede esquerda (posição antiga)</option><option value="-37">Flanco esquerdo, como na sua quadra (37°)</option><option value="-30">Flanco esquerdo, mais de frente (30°)</option><option value="-45">Flanco esquerdo, diagonal (45°)</option><option value="-60">Flanco esquerdo, mais de lado (60°)</option><option value="-90">Lateral esquerda (90°)</option><option value="0">De frente para a cesta</option><option value="45">Flanco direito, diagonal (45°)</option><option value="90">Lateral direita (90°)</option></select></label>
         <div class="btns">
           <button id="bHoop">Procurar aro de novo</button>
-          <button id="bTap">Marcar o aro de novo</button>
+          <button id="bTap">Marcar o aro de novo</button><button id="bMoved">Mudei a câmera ou a tabela de lugar</button>
           <button id="bReset">Zerar placar</button>
           <button id="bCopy">Copiar resumo</button>
         </div>
@@ -1261,7 +1263,7 @@ function setLight(imgs) {
   for (const d of imgs) boost(d);
   return true;
 }
-let mkImgs = [];
+let mkImgs = [], bgMed = null;
 function hiGrab(src, vw, vh, rot) { // quadro em resolução maior (até 1280) para enxergar linhas finas no chão
   const dw = rot % 180 ? vh : vw, dh = rot % 180 ? vw : vh, k = Math.min(1, 1280 / dw), W = Math.round(dw * k), H = Math.round(dh * k);
   const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d', { willReadFrequently: true });
@@ -1481,6 +1483,7 @@ $('fAny').onchange = e => { startFile(e.target.files[0]); e.target.value = ''; }
 $('bStop').onclick = () => { const wasLive = live && running; stopAll(); status('Parado', ''); if (wasLive) commitLearning(); };
 $('bHoop').onclick = () => { A.relearn(); startT = performance.now(); status('Procurando aro…', 'warn'); };
 $('bTap').onclick = startMark;
+$('bMoved').onclick = () => { forgetCourt(); msg('Pronto: esqueci o aro, o chão e as marcas da posição antiga (o histórico continua). No próximo vídeo ou no ao vivo o app aprende a posição nova.'); };
 $('bReset').onclick = () => { A.reset(); newSession(); render(); };
 $('camAuto').checked = store('arremessos-cam-auto') !== '0'; $('camAuto').onchange = e => { store('arremessos-cam-auto', e.target.checked ? '1' : '0'); camMeasure(); applyGeo(); render(); saveCur(); };
 $('cam').onchange = e => { $('camAuto').checked = false; store('arremessos-cam-auto', '0'); const v = Math.min(20, Math.max(2, +e.target.value || 7)); e.target.value = v; store('arremessos-cam', v); A.setCam(v); applyGeo(); render(); saveCur(); renderLearn(); };
@@ -2464,6 +2467,24 @@ const FLOOR0B = { y0: 0.573, hc: 1.27 };
 const FLOOR0 = { get hc() { return FLOOR0B.hc; }, get y0() { const h = A.hoop, ph = proc.height || 270; return h && h.w ? (h.y + (RIMH() - this.hc) * h.w / 0.45) / ph : FLOOR0B.y0; } }; // horizonte calculado pelo aro (3,05 m) e pela altura da câmera
 function rimOf(F) { const h = A.hoop; if (!h) return null; const ph = proc.height || 270; return (F.y0 * ph - h.y) / h.w * 0.45 + F.hc; }
 function floorNow() { const F = FLOOR.fit; if (!F) return FLOOR0; const rr = rimOf(F); if (rr != null && Math.abs(rr - RIMH()) > 0.6) return FLOOR0; /* o aprendido não bate com a altura do aro: fica com a medida da imagem */ const k = Math.min(1, F.n / 40); return { y0: F.y0 * k + FLOOR0.y0 * (1 - k), hc: F.hc * k + FLOOR0.hc * (1 - k), n: F.n }; }
+// ---------- câmera ou tabela em outro lugar? compara os contornos da cena com os da última vez ----------
+const SCK = () => 'arremessos-cena' + (live && facing === 'user' ? '-frontal' : '');
+function sceneThumb(src) {
+  if (src instanceof ImageData) { const t = document.createElement('canvas'); t.width = src.width; t.height = src.height; t.getContext('2d').putImageData(src, 0, 0); src = t; }
+  const c = document.createElement('canvas'); c.width = 64; c.height = 36; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(src, 0, 0, 64, 36);
+  const d = x.getImageData(0, 0, 64, 36).data, g = new Float32Array(64 * 36); for (let i = 0; i < g.length; i++) g[i] = 0.3 * d[i * 4] + 0.59 * d[i * 4 + 1] + 0.11 * d[i * 4 + 2];
+  const e = []; for (let y = 1; y < 35; y++) for (let x2 = 1; x2 < 63; x2++) { const i = y * 64 + x2; e.push(Math.hypot(g[i + 1] - g[i - 1], g[i + 64] - g[i - 64])); }
+  const m = e.reduce((a, b) => a + b, 0) / e.length; let q = 0; for (let i = 0; i < e.length; i++) { e[i] -= m; q += e[i] * e[i]; } q = Math.sqrt(q) || 1; return e.map(v => +(v / q).toFixed(4));
+}
+function sceneSim(src) { let old = null; try { old = JSON.parse(store(SCK()) || 'null'); } catch (e) {} if (!old) return null; const nw = sceneThumb(src); if (old.length !== nw.length) return null; let s2 = 0; for (let i = 0; i < nw.length; i++) s2 += old[i] * nw[i]; return s2; }
+function sceneSave(src) { try { store(SCK(), JSON.stringify(sceneThumb(src))); } catch (e) {} }
+function forgetCourt() { // esquece aro, chão aprendido e marcas desta câmera; o histórico fica
+  if (live && facing === 'user') store('arremessos-aro-frontal', 'null');
+  else if (profile) { profile.hoop = null; profile.hoopFixed = false; profile.builtin = false; profile.updated = new Date().toISOString(); saveProfile(); }
+  FLOOR = { obs: [], fit: null }; store('arremessos-chao', JSON.stringify(FLOOR)); MARKS = null; store('arremessos-marcas', 'null'); store(SCK(), 'null');
+  $('camAuto').checked = true; store('arremessos-cam-auto', '1');
+  A.setProfile(live ? liveProfile() : profile); A.relearn(); try { renderMarks(); renderLearn(); } catch (e) {}
+}
 // ---------- marcas no chão (círculos pretos de 2, 4 e 6 m; linha central e divisas laranja): régua exata do chão ----------
 let MARKS = (() => { try { return JSON.parse(store('arremessos-marcas') || 'null'); } catch (e) { return null; } })();
 const MK_R = () => { try { const v = JSON.parse(store('arremessos-marcas-raios') || 'null'); if (Array.isArray(v) && v.length === 3) return v.map(Number); } catch (e) {} return [2, 4, 6]; };
@@ -2783,11 +2804,11 @@ function mkPaint() {
 }
 function mkStart() {
   if (!live || !proc.width) return;
-  mk = { step: 0, pts: [] }; vid.pause(); running = false; // congela a imagem
+  mk = { step: 0, pts: [] }; vid.pause(); running = false; $('hud').classList.add('mk'); // congela a imagem e tira o placar da frente do aro
   $('hudMark').classList.add('on'); $('hudOk').hidden = true; $('hudRedo').hidden = true;
   mkMsg('Imagem parada. Toque perto do aro');
 }
-function mkEnd() { mk = null; $('zoomC').hidden = true; $('hudMark').classList.remove('on'); $('hudOk').hidden = true; $('hudRedo').hidden = true; vid.play().catch(() => {}); running = true; loop(); }
+function mkEnd() { mk = null; $('hud').classList.remove('mk'); $('zoomC').hidden = true; $('hudMark').classList.remove('on'); $('hudOk').hidden = true; $('hudRedo').hidden = true; vid.play().catch(() => {}); running = true; loop(); }
 function mkTap(x, y) { if (mk.step === 0) { mk.c = [x, y]; mk.step = 1; mkZoom(); $('hudRedo').hidden = false; mkMsg('Na lupa: toque na ponta ESQUERDA do aro'); } }
 $('zoomC').addEventListener('click', e => {
   e.stopPropagation(); if (!mk || !mk.z || mk.pts.length >= 2) return;
@@ -2850,7 +2871,7 @@ async function liveMarks() { // ao vivo: junta alguns quadros (você se mexendo 
   if (!live || L.length < 5) return; const r = marksFromImgs(L); setMarks(r, A.hoop); if (MARKS) { try { applyGeo(); render(); } catch (e) {} }
 }
 function calDone(text, kept) { // aro confirmado no mesmo lugar: os arremessos da calibração também contam
-  setTimeout(() => { liveMarks().catch(() => {}); }, 300);
+  setTimeout(() => { liveMarks().catch(() => {}); }, 300); setTimeout(() => { try { if (live && A.hoop) sceneSave(proc); } catch (e) {} }, 400);
   const h = A.hoop, h0 = calib && calib.h0, W = proc.width || 480, H = proc.height || 270;
   const same = kept || (h && h0 && Math.abs(h.cx / W - h0.cx) < h0.w * 0.5 && Math.abs(h.y / H - h0.y) < h0.w * 0.5 * W / H);
   calib = null; calOk = true; setTimeout(camMeasure, 300); if (!same) { A.reset(); liveSaid = []; } $('hudL').innerHTML = `<span style="color:var(--ok)">${text}</span>`; if ($('spk').checked) say('Aro encontrado. Pode começar.', true); }
@@ -2901,6 +2922,7 @@ async function liveStart() {
   await vid.play().catch(() => {});
   try { wakeL = await navigator.wakeLock.request('screen'); } catch (e) { wakeL = null; }
   A.setProfile(liveProfile()); prep(); cur.src = 'Ao vivo'; liveSaid = []; liveEnding = false; calStart(); vid.playbackRate = 1;
+  setTimeout(() => { try { if (!live || !proc.width) return; const sim = sceneSim(proc); if (sim != null && sim < 0.5) { forgetCourt(); calStart(); $('hudL').innerHTML = '<span style="color:var(--cyan)">Câmera em lugar novo: procurando o aro. Se demorar, toque em Marcar aro.</span>'; if ($('spk').checked) say('Câmera em lugar novo. Procurando o aro.', true); } } catch (e) { console.error(e); } }, 1800);
   $('bLive').classList.add('on'); $('bLive').textContent = '■ Parar o ao vivo'; $('bStop').hidden = true; $('hud').hidden = false; hudUpdate();
   progHud(); if (PROG) pgSay(`${PROG.p.name}. Vou achar o aro primeiro.`, true);
   status('Ao vivo: procurando o aro…', 'warn'); if ($('spk').checked && !PROG) say(GOAL ? `Série de ${GOAL} arremessos. Pode começar.` : 'Pode começar.', true);
@@ -3721,6 +3743,7 @@ async function fastAnalyze(file) {
         const L = imgs[0].length, med = new Uint8ClampedArray(L), col = new Uint8Array(imgs.length), mid = imgs.length >> 1;
         for (let p = 0; p < L; p++) { if ((p & 3) === 3) { med[p] = 255; continue; } for (let k = 0; k < imgs.length; k++) col[k] = imgs[k][p]; col.sort(); med[p] = col[mid]; }
         A.setBackground(med, proc.width, proc.height);
+        try { bgMed = new ImageData(new Uint8ClampedArray(med), proc.width, proc.height); const sim = sceneSim(bgMed); if (sim != null && sim < 0.5) { forgetCourt(); msg('A câmera (ou a tabela) está num lugar novo: vou achar o aro e o chão de novo neste vídeo.'); } } catch (e) { console.error(e); }
       }
     }
   } catch (e) { /* segue sem o fundo pronto */ }
@@ -3807,6 +3830,7 @@ async function fastAnalyze(file) {
   const stopped = !running;
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
   if (!stopped) { try { A.flush(info.dur); A.finalize(); applyPend(); } catch (e) { console.error(e); } } pendFx = []; // decide cada arremesso olhando a trajetória completa
+  if (!stopped && A.hoop && bgMed) { try { sceneSave(bgMed); } catch (e) {} } bgMed = null;
   if (!stopped) { try { const had = !!MARKS, mr = marksFromImgs(mkImgs); setMarks(mr, A.hoop); if (mr && mr.ok && !had) setTimeout(() => msg('Achei as marcas no chão: agora a distância e o lado de cada arremesso vêm delas. Confira o desenho na aba Quadra.'), 1500); } catch (e) { console.error(e); } mkImgs = []; }
   if (!stopped) for (const fn of [camMeasure, setFeet, setArcs, learnFloor, applyGeo, classifyAll, renderFloor]) { try { fn(); } catch (e) { console.error(e); } }
   prog(stopped ? 0 : info.dur);
