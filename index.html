@@ -163,6 +163,7 @@ tr.cur td{background:#2b2012}
 .attr{display:grid;grid-template-columns:1fr 2.6em 1.6em;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.attr b{font:800 20px "Barlow Condensed",sans-serif;text-align:right}.attr small{display:block;color:var(--mute);font-size:12px}.attr .up{color:var(--ok)}.attr .down{color:var(--bad)}.attr .na{color:var(--mute);font:600 12px Barlow,sans-serif}
 .pfd{border-top:1px solid var(--line);padding:8px 0}.pfd summary{cursor:pointer;font:700 17px Barlow,sans-serif;min-height:40px;display:flex;align-items:center}.pfd[open] summary{color:var(--ball)}
 .plan{display:grid;gap:8px}.plan .pd{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.plan b{font:700 16px Barlow,sans-serif}.plan small{display:block;color:var(--mute);font-size:13px}.plan button{background:var(--ball);color:#1a0c03;border-color:var(--ball);font-weight:800}
+.fastopt{flex:1 1 100%;background:#1b1510;border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-size:15px}
 @media(prefers-reduced-motion:reduce){.flash{transition:none}}
 </style>
 </head>
@@ -210,6 +211,7 @@ tr.cur td{background:#2b2012}
         <div class="liveopt" id="liveOpt"><span>Câmera:</span><div class="chips" id="camSide"><button data-c="environment">Traseira</button><button data-c="user">Frontal</button></div><span>Série ao vivo:</span><div class="chips" id="goal"><button data-g="0" class="on">Livre</button><button data-g="10">10</button><button data-g="25">25</button><button data-g="50">50</button><button data-g="100">100</button></div>
           <label class="row"><input type="checkbox" id="bip"> Bipe de cesta e de erro</label>
           <label class="row"><input type="checkbox" id="spk"> Falar a contagem a cada arremesso</label></div>
+        <label class="row fastopt"><input type="checkbox" id="turbo"> <b>Modo super rápido</b>&nbsp;<small style="color:var(--mute)">(analisa com tudo só os momentos de arremesso e deixa o corpo para depois)</small></label>
         <label class="btn pick alt">Não abriu a galeria? Toque aqui<input type="file" id="fAny" aria-label="Escolher arquivo de vídeo"></label>
         <button id="bStop" hidden>Parar</button>
       </div>
@@ -226,7 +228,7 @@ tr.cur td{background:#2b2012}
         <h2>Ajustes</h2>
         <label>Luz do treino <select id="luz"><option value="auto">Automático (detecta noite sozinho)</option><option value="noite">Noite / pouca luz</option><option value="dia">Dia</option></select></label>
         <label class="row"><input type="checkbox" id="corpoOn" checked> Analisar o corpo: mão do arremesso, salto, braço e joelho (precisa de internet)</label>
-        <div class="btns"><button id="bPoseT">Testar o reconhecimento do corpo</button></div>
+        <div class="btns"><button id="bPoseT">Testar o reconhecimento do corpo</button><button id="bBodyNow">Analisar o corpo do último vídeo</button></div>
         <div id="poseT" hidden><p class="note" id="poseTxt"></p><canvas id="poseC" style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line)"></canvas></div>
         <label class="row"><input type="checkbox" id="somOn"> Analisar também o som (barulho no aro, na tabela, na rede)</label>
         <input type="checkbox" id="narrOn" hidden>
@@ -1106,7 +1108,7 @@ const vid = $('vid'), ov = $('ov'), octx = ov.getContext('2d');
 const proc = document.createElement('canvas'), pctx = proc.getContext('2d', { willReadFrequently: true });
 pctx.imageSmoothingEnabled = true; pctx.imageSmoothingQuality = 'high'; // reduz a imagem com qualidade (aro fino não some)
 const dbgC = document.createElement('canvas'), dctx = dbgC.getContext('2d');
-let roiTick = 0; const roiC = document.createElement('canvas'), rctx = roiC.getContext('2d', { willReadFrequently: true }); // região do aro em resolução cheia
+let roiTick = 0, TURBO = false, TURBO_HOT = true; const roiC = document.createElement('canvas'), rctx = roiC.getContext('2d', { willReadFrequently: true }); // região do aro em resolução cheia
 let sel = null, delArm2 = null;
 let demo = null, fast = false, reviewable = false, reviewing = false, fileURL = null, revTimer = null; const demoC = $('demoC'), demoX = demoC.getContext('2d');
 const PK = 'arremessos-perfil';
@@ -1119,6 +1121,7 @@ const store = (k, v) => { try { v === undefined ? 0 : localStorage.setItem(k, v)
 $('cam').value = camSaved || 7;
 $('ang').value = store('arremessos-ang-v4') || '0';
 $('somOn').checked = store('arremessos-som') === '1';
+$('turbo').checked = store('arremessos-turbo') === '1'; $('turbo').onchange = e => store('arremessos-turbo', e.target.checked ? '1' : '0');
 $('corpoOn').checked = store('arremessos-corpo') !== '0'; $('corpoOn').onchange = e => store('arremessos-corpo', e.target.checked ? '1' : '0');
 $('luz').value = store('arremessos-luz') || 'auto'; $('luz').onchange = e => store('arremessos-luz', e.target.value);
 $('somOn').onchange = e => store('arremessos-som', e.target.checked ? '1' : '0');
@@ -1277,7 +1280,7 @@ function analyze(src, vw, vh, rot, t, show) {
   }
   if (!A.hoop && !fast && (performance.now() - startT) > 5000 && !tapMode) status('Não achei o aro. Melhore a luz ou toque nele na imagem', 'warn');
   // região do aro em resolução cheia (vídeo deitado, sem rotação)
-  if (!rot && A.hoop && vw > pw * 1.2 && (A.roiNeeded() || (roiTick++ % 6) === 0)) { // resolução cheia quando a bola vai para o aro (e de vez em quando, para manter o fundo)
+  if (!rot && A.hoop && vw > pw * 1.2 && (TURBO ? (TURBO_HOT && A.roiNeeded()) || (roiTick++ % 24) === 0 : A.roiNeeded() || (roiTick++ % 6) === 0)) { // resolução cheia quando a bola vai para o aro (e de vez em quando, para manter o fundo)
     const r0 = A.roiRect(vw, vh);
     if (r0 && r0.sw > 8 && r0.sh > 8) {
       const f = Math.min(1, Math.sqrt(300000 / (r0.sw * r0.sh))), rw = Math.round(r0.sw * f), rh = Math.round(r0.sh * f);
@@ -2987,7 +2990,7 @@ async function bodyPass(file, info, cfg) {
     const dec = new VideoDecoder({ output: fr => { try {
       const vt = fr.timestamp / 1e6 - cts0 / ts;
       if (vt >= tA && vt <= tB && vt + 0.004 >= nextT) {
-        nextT = vt + 0.05;
+        nextT = vt + (TURBO ? 0.1 : 0.05);
         const r = info.rot;
         if (!r) fx.drawImage(fr, 0, 0, FW, FH); else { if (r === 90) fx.setTransform(0, 1, -1, 0, FW, 0); else if (r === 270) fx.setTransform(0, -1, 1, 0, 0, FH); else fx.setTransform(-1, 0, 0, -1, FW, FH); if (r === 180) fx.drawImage(fr, 0, 0, FW, FH); else fx.drawImage(fr, 0, 0, FH, FW); fx.setTransform(1, 0, 0, 1, 0, 0); }
         cx2.drawImage(fc, crop[0] * k480, crop[1] * k480, cw, ch, 0, 0, cc.width, cc.height);
@@ -3016,6 +3019,20 @@ async function bodyPass(file, info, cfg) {
   }
   return ok;
 }
+// ---------- analisar o corpo depois (para quem usou o modo super rápido) ----------
+$('bBodyNow').onclick = async () => {
+  if (!lastFile || !A.shots.length) { msg('Envie um vídeo primeiro.'); return; }
+  let info = null; try { const m = await findMoov(lastFile); if (m) info = parseMoov(m); } catch (e) {}
+  if (!info) { msg('Não consegui ler este vídeo.'); return; }
+  const cfg = { codec: info.codec, description: info.desc, codedWidth: info.w, codedHeight: info.h };
+  document.body.dataset.t = 'treino'; for (const x of $('tabs').children) x.classList.toggle('on', x.dataset.t === 'treino');
+  $('prog').hidden = false; running = true; keepAwake(true);
+  let nb = 0; try { nb = await bodyPass(lastFile, info, cfg); } catch (e) {}
+  running = false; keepAwake(false);
+  for (const fn of [setFeet, learnFloor, applyGeo, render, saveCur]) { try { fn(); } catch (e) {} }
+  $('pTxt').textContent = nb > 0 ? `Corpo analisado em ${nb} arremessos` : 'Não consegui analisar o corpo';
+  msg(nb < 0 ? 'Não consegui carregar o reconhecimento do corpo. Use "Testar o reconhecimento do corpo" para ver o motivo.' : nb > 0 ? 'Pronto: mão, salto, cotovelo e mecânica atualizados nas abas Técnica, Perfil e NBA.' : 'Não consegui ver o seu corpo neste vídeo.');
+};
 // ---------- teste do reconhecimento do corpo: mostra o esqueleto num momento de arremesso do último vídeo ----------
 $('bPoseT').onclick = async () => {
   $('poseT').hidden = false; const T = t => $('poseTxt').innerHTML = t;
@@ -3139,7 +3156,7 @@ async function fastAnalyze(file) {
   } catch (e) { /* segue sem o fundo pronto */ }
   status('Analisando o vídeo…', 'warn');
   snap = null; snap0 = null;
-  const t0w = performance.now(); let nextT = 0, done = 0, lastUI = 0, failed = null, shown = 0;
+  const t0w = performance.now(); let nextT = 0, done = 0, lastUI = 0, failed = null, shown = 0, actT = -9; const turbo = $('turbo').checked;
   const prog = vt => {
     const f = Math.min(1, vt / info.dur), el = (performance.now() - t0w) / 1000, left = f > 0.02 ? el * (1 - f) / f : null;
     $('pFill').style.width = (f * 100).toFixed(1) + '%';
@@ -3150,8 +3167,11 @@ async function fastAnalyze(file) {
       try {
         const vt = (fr.timestamp / 1e6) - cts0 / ts;
         if (running && vt + 0.004 >= nextT) {
-          nextT = vt + 1 / 30 - 0.004;
-          const show = (shown++ % 4) === 0;
+          const h = A.hoop, hot = h && lastBall && (lastBall.y < h.y + h.w * 3 || (Math.abs(lastBall.x - h.cx) < h.w * 3 && lastBall.y < h.bot + h.w * 3)); // bola acima do aro ou perto dele
+          if (turbo && hot) actT = vt;
+          const act = !turbo || !h || hot || vt - actT < 1.5;
+          nextT = vt + (act ? 1 / 30 : 1 / 10) - 0.004; TURBO = turbo; TURBO_HOT = act; // super rápido: 10 quadros/s parado, 30 quando a bola sobe
+          const show = (shown++ % (turbo ? 15 : 4)) === 0;
           analyze(fr, fr.displayWidth, fr.displayHeight, info.rot, vt, false);
           if (lastBall && (!snap || lastBall.y < snap.ball.y)) snap = { img: pctx.getImageData(0, 0, proc.width, proc.height), ball: { ...lastBall }, t: vt };
           if (!snap0 && vt > info.dur * 0.3) snap0 = { img: pctx.getImageData(0, 0, proc.width, proc.height), t: vt };
@@ -3200,14 +3220,15 @@ async function fastAnalyze(file) {
   const stopped = !running;
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
   if (!stopped) { try { A.flush(info.dur); A.finalize(); } catch (e) { console.error(e); } } // decide cada arremesso olhando a trajetória completa
-  if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
-  if (!stopped && $('corpoOn').checked) { running = true; try { const lim = Math.max(90, 4 * A.shots.length) * 1000; const nb = await Promise.race([bodyPass(file, info, cfg), sleep(lim).then(() => { running = false; return 0; })]); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
+  if (!stopped && $('somOn').checked && !turbo) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
+  if (!stopped && $('corpoOn').checked && !turbo) { running = true; try { const lim = Math.max(90, 4 * A.shots.length) * 1000; const nb = await Promise.race([bodyPass(file, info, cfg), sleep(lim).then(() => { running = false; return 0; })]); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
   if (!stopped) for (const fn of [camMeasure, setFeet, setArcs, learnFloor, applyGeo, renderFloor]) { try { fn(); } catch (e) { console.error(e); } }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
   if (!stopped) $('pFill').style.width = '100%';
   status((A.hoop ? 'Vídeo analisado: ' : 'Aro não encontrado no vídeo · ') + A.shots.length + ' arremessos. Toque em ▶ para rever', A.hoop ? 'on' : 'warn');
   vid.currentTime = 0; octx.clearRect(0, 0, ov.width, ov.height);
+  if (!stopped && turbo && $('corpoOn').checked) msg('Modo super rápido: o corpo ficou para depois. Quando quiser, toque em Ajustes → "Analisar o corpo do último vídeo".');
   if (failed) msg(skipped > 0.5 ? `Um trecho de ${Math.round(skipped)} s do vídeo estava com defeito e foi pulado; o resto foi analisado até o fim.` : 'Parte do vídeo não pôde ser lida; os arremessos até ali foram contados.');
   for (const fn of [render, saveCur, () => { if (!stopped) commitLearning(); }, showDoubt, showDiag]) { try { fn(); } catch (e) { console.error(e); } }
   $('narrBar').hidden = true; keepAwake(false);
