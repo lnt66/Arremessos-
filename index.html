@@ -212,10 +212,11 @@ tr.cur td{background:#2b2012}
         <label class="row"><input type="checkbox" id="somOn"> Analisar também o som (barulho no aro, na tabela, na rede)</label>
         <input type="checkbox" id="narrOn" hidden>
         <label class="row"><input type="checkbox" id="dbg"> Mostrar o que a IA está vendo (laranja = bola, azul = aro)</label>
+        <label class="row"><input type="checkbox" id="camAuto" checked> Medir sozinho a distância e a posição da câmera (pelo tamanho do aro na imagem)</label>
         <label class="row">Distância da câmera até a cesta
           <input type="number" id="cam" min="2" max="20" step="0.5" value="7" inputmode="decimal" style="width:5.5em;font:16px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:40px;padding:0 8px"> m</label>
         <label class="row">Posição da câmera
-          <select id="ang"><option value="-37">Flanco esquerdo, como na sua quadra (37°)</option><option value="-30">Flanco esquerdo, mais de frente (30°)</option><option value="-45">Flanco esquerdo, diagonal (45°)</option><option value="-60">Flanco esquerdo, mais de lado (60°)</option><option value="-90">Lateral esquerda (90°)</option><option value="0">De frente para a cesta</option><option value="45">Flanco direito, diagonal (45°)</option><option value="90">Lateral direita (90°)</option></select></label>
+          <select id="ang"><option value="0">Quase de frente para a tabela (sua nova posição)</option><option value="auto">Encostada na parede esquerda (posição antiga)</option><option value="-37">Flanco esquerdo, como na sua quadra (37°)</option><option value="-30">Flanco esquerdo, mais de frente (30°)</option><option value="-45">Flanco esquerdo, diagonal (45°)</option><option value="-60">Flanco esquerdo, mais de lado (60°)</option><option value="-90">Lateral esquerda (90°)</option><option value="0">De frente para a cesta</option><option value="45">Flanco direito, diagonal (45°)</option><option value="90">Lateral direita (90°)</option></select></label>
         <div class="btns">
           <button id="bHoop">Procurar aro de novo</button>
           <button id="bTap">Marcar o aro de novo</button>
@@ -293,6 +294,7 @@ tr.cur td{background:#2b2012}
         <div class="calin">
           <label>Da cesta até a parede esquerda <input type="number" id="cmL" min="0" max="30" step="0.1" inputmode="decimal"> m</label>
           <label>Da cesta até a parede direita <input type="number" id="cmR" min="0" max="30" step="0.1" inputmode="decimal"> m</label>
+          <label>Tabela virada para a esquerda <input type="number" id="cmV" min="0" max="80" step="1" inputmode="numeric"> graus</label>
           <label>Espaço atrás da cesta <input type="number" id="cmB" min="0" max="20" step="0.1" inputmode="decimal"> m</label>
         </div>
         <div class="btns"><button id="bFloorReset">Reaprender o chão (mudei a câmera)</button></div>
@@ -1006,15 +1008,24 @@ const camSaved = (() => { try { return +localStorage.getItem('arremessos-cam') |
 let A = createAnalyzer({ hfov: 68, camDist: camSaved || 7, profile }), stream = null, running = false, live = false, lastBall = null, trail = [], tapMode = false, startT = 0, foundAt = null;
 const store = (k, v) => { try { v === undefined ? 0 : localStorage.setItem(k, v); return localStorage.getItem(k); } catch (e) { return null; } };
 $('cam').value = camSaved || 7;
-$('ang').value = store('arremessos-ang-v2') || '-37';
+$('ang').value = store('arremessos-ang-v4') || '0';
 $('somOn').checked = store('arremessos-som') === '1';
 $('corpoOn').checked = store('arremessos-corpo') !== '0'; $('corpoOn').onchange = e => store('arremessos-corpo', e.target.checked ? '1' : '0');
 $('luz').value = store('arremessos-luz') || 'auto'; $('luz').onchange = e => store('arremessos-luz', e.target.value);
 $('somOn').onchange = e => store('arremessos-som', e.target.checked ? '1' : '0');
 // posição no chão da quadra (cesta na origem, quadra para baixo, direita do jogador = +x), a partir da visão da câmera
+// câmera: o celular é o mesmo, então a lente é a mesma; o tamanho do aro na imagem dá a distância
+const FNORM = 0.4552; // distância focal ÷ largura da imagem, medida no seu vídeo de referência (aro de 0,45 m a 7 m)
+let camAutoD = null;
+function angDeg() { const v = $('ang').value; if (v !== 'auto') return +v || 0; const d = +$('cam').value || 7, lat = Math.max(0.5, CM.L - 0.55); return -Math.asin(Math.min(0.99, lat / d)) * 180 / Math.PI; }
+function camMeasure() { // chamado quando o aro está achado
+  const h = A.hoop; if (!h || !$('camAuto').checked || !proc.width) return;
+  const d = FNORM * proc.width * 0.45 / h.w; if (!(d > 2 && d < 25)) return;
+  camAutoD = d; $('cam').value = d.toFixed(1); A.setCam(d);
+}
 function toCourt(g) {
   if (g && g.cx != null) return { x: g.cx, y: g.cy };
-  const f = (+$('ang').value || 0) * Math.PI / 180, sn = Math.sin(f), cs = Math.cos(f);
+  const f = angDeg() * Math.PI / 180, sn = Math.sin(f), cs = Math.cos(f);
   return { x: g.dz * sn + g.dx * cs, y: g.dz * cs - g.dx * sn };
 }
 
@@ -1236,27 +1247,29 @@ function court() {
   $('viewing').classList.toggle('show', !!viewSess);
   if (viewSess) $('viewTxt').textContent = 'Mostrando o treino de ' + fmtD(viewSess.date);
   // quadra de casa vista de cima: cesta no topo; câmera no flanco escolhido
-  const cd = +$('cam').value || 7, f = (+$('ang').value || 0) * Math.PI / 180;
+  const cd = +$('cam').value || 7, f = angDeg() * Math.PI / 180;
   const camC = { x: cd * Math.sin(f), y: cd * Math.cos(f) }, RC = null;
-  const depth = Math.max(camC.y, 5) + 1, wide = CM.L + CM.R + 1.2;
-  const k = Math.min(96 / wide, 82 / depth), HX = Math.max(8, Math.min(92, 50 + ((CM.L - CM.R) / 2) * k)), X = m => HX + m * k, Y = m => 6 + m * k;
+  const bV = CM.V * Math.PI / 180, depth = Math.max(camC.y, 5) + 1, xL = -CM.L * Math.cos(bV) + 6 * Math.sin(bV) * 0, xR = CM.R * Math.cos(bV) + depth * Math.sin(bV), wide = Math.max(CM.L + CM.R, xR - xL) + 1.2;
+  const k = Math.min(96 / wide, 82 / depth), HX = Math.max(8, Math.min(92, 50 + ((-xL - xR) / 2) * k)), X = m => HX + m * k, Y = m => 6 + m * k;
   let g = `<rect x="0" y="0" width="100" height="92" fill="#2a1f15" rx="3"/><g fill="none" stroke="#7a6248" stroke-width=".4">`;
   for (let r = 1; r <= 8; r++) g += `<circle cx="${HX}" cy="${Y(0)}" r="${r * k}" ${r % 2 ? 'stroke-dasharray="1 1.2"' : ''}/>`;
   g += `<line x1="0" y1="${Y(0) - 0.6 * k}" x2="100" y2="${Y(0) - 0.6 * k}"/></g>`;
   for (let r = 2; r <= 8; r += 2) { const tx = HX - r * k * 0.71 - 6, ty = Y(0) + r * k * 0.71; if (tx > 1 && ty < 90) g += `<text x="${tx}" y="${ty}" fill="#a8927a" font-size="3.2" font-family="Barlow, system-ui, sans-serif">${r} m</text>`; }
   g += `<line x1="${X(-0.9)}" y1="${Y(-0.35)}" x2="${X(0.9)}" y2="${Y(-0.35)}" stroke="#ddd" stroke-width="1"/>
   <circle cx="${HX}" cy="${Y(0)}" r="${0.225 * k + 0.5}" fill="none" stroke="#f26b1d" stroke-width=".8"/>`;
-  if (!RC) { // paredes da sua quadra
-    const yb = Y(-Math.min(CM.B, 1.2)), ye = 92, xl = X(-CM.L), xr = X(CM.R);
-    g += `<rect x="0" y="0" width="${Math.max(0, xl)}" height="92" fill="#120d09"/><rect x="${Math.min(100, xr)}" y="0" width="${Math.max(0, 100 - xr)}" height="92" fill="#120d09"/>`;
-    g += `<line x1="${xl}" y1="${yb}" x2="${xl}" y2="${ye}" stroke="#b5a798" stroke-width="1.2"/><line x1="${xr}" y1="${yb}" x2="${xr}" y2="${ye}" stroke="#b5a798" stroke-width="1.2"/>`;
-    if (xl > 6) g += `<text x="${xl - 1.5}" y="60" fill="#b5a798" font-size="3" text-anchor="end" font-family="Barlow, system-ui, sans-serif">parede</text>`; else g += `<text x="${xl + 1.5}" y="88" fill="#b5a798" font-size="3" font-family="Barlow, system-ui, sans-serif">parede esq.</text>`;
-    g += `<text x="${Math.min(98, xr + 1.2)}" y="88" fill="#b5a798" font-size="3" text-anchor="${xr > 90 ? 'end' : 'start'}" font-family="Barlow, system-ui, sans-serif">${xr > 90 ? 'parede dir.' : 'parede'}</text>`;
+  if (!RC) { // paredes da sua quadra (a tabela está virada para a esquerda: as paredes ficam inclinadas no mapa)
+    const b = CM.V * Math.PI / 180, ax = Math.sin(b), ay = Math.cos(b), nx = Math.cos(b), ny = -Math.sin(b);
+    const P = (o, t) => [X(o * nx + t * ax), Y(o * ny + t * ay)], T0 = -CM.B, T1 = 14;
+    const r0 = P(CM.R, T0), r1 = P(CM.R, T1), l0 = P(-CM.L, T0), l1 = P(-CM.L, T1);
+    g += `<path d="M-50,-50 H150 V150 H-50 Z M${l0} L${r0} L${r1} L${l1} Z" fill="#120d09" fill-rule="evenodd"/>`;
+    g += `<line x1="${l0[0]}" y1="${l0[1]}" x2="${l1[0]}" y2="${l1[1]}" stroke="#b5a798" stroke-width="1.2"/><line x1="${r0[0]}" y1="${r0[1]}" x2="${r1[0]}" y2="${r1[1]}" stroke="#b5a798" stroke-width="1.2"/><line x1="${l0[0]}" y1="${l0[1]}" x2="${r0[0]}" y2="${r0[1]}" stroke="#b5a798" stroke-width=".6" stroke-dasharray="1 1"/>`;
+    const lm = P(-CM.L, 6), rm = P(CM.R, 6);
+    g += `<text x="${Math.max(3, Math.min(97, lm[0] + 1.5))}" y="${Math.min(90, lm[1])}" fill="#b5a798" font-size="3" font-family="Barlow, system-ui, sans-serif">parede esq.</text><text x="${Math.max(3, Math.min(97, rm[0] - 1.5))}" y="${Math.min(90, rm[1])}" fill="#b5a798" font-size="3" text-anchor="end" font-family="Barlow, system-ui, sans-serif">parede dir.</text>`;
   }
   if (RC) g += `<polygon points="${RC.map(p => X(p.x) + ',' + Y(p.y)).join(' ')}" fill="none" stroke="#3fd0e0" stroke-width=".5" stroke-dasharray="1.5 1"/><text x="${X(RC[0].x)}" y="${Math.min(90, Y(RC[0].y) + 3.5)}" fill="#3fd0e0" font-size="3" font-family="Barlow, system-ui, sans-serif">sua marcação</text>`;
   const cx = Math.max(4, Math.min(96, X(camC.x))), cy = Math.max(4, Math.min(88, Y(camC.y)));
   if (!RC) g += `<line x1="${cx}" y1="${cy}" x2="${HX}" y2="${Y(0)}" stroke="#3fd0e0" stroke-width=".3" stroke-dasharray="1 1.5" opacity=".7"/>
-  <g transform="translate(${cx} ${cy}) rotate(${-(+$('ang').value || 0)})"><rect x="-3" y="-1.6" width="6" height="3.6" rx=".8" fill="#3fd0e0"/><circle cx="0" cy=".2" r="1" fill="#0b0907"/></g>
+  <g transform="translate(${cx} ${cy}) rotate(${-angDeg()})"><rect x="-3" y="-1.6" width="6" height="3.6" rx=".8" fill="#3fd0e0"/><circle cx="0" cy=".2" r="1" fill="#0b0907"/></g>
   <text x="${cx > 70 ? cx - 15 : cx + 4}" y="${cy + 5.5 > 90 ? cy - 3 : cy + 5.5}" fill="#3fd0e0" font-size="3.2" font-family="Barlow, system-ui, sans-serif">câmera ${String(cd).replace('.', ',')} m</text>`;
   const pts = [];
   for (const s of list) {
@@ -1282,7 +1295,8 @@ $('bStop').onclick = () => { const wasLive = live && running; stopAll(); status(
 $('bHoop').onclick = () => { A.relearn(); startT = performance.now(); status('Procurando aro…', 'warn'); };
 $('bTap').onclick = startMark;
 $('bReset').onclick = () => { A.reset(); newSession(); render(); };
-$('cam').onchange = e => { const v = Math.min(20, Math.max(2, +e.target.value || 7)); e.target.value = v; store('arremessos-cam', v); A.setCam(v); applyGeo(); render(); saveCur(); renderLearn(); };
+$('camAuto').checked = store('arremessos-cam-auto') !== '0'; $('camAuto').onchange = e => { store('arremessos-cam-auto', e.target.checked ? '1' : '0'); camMeasure(); applyGeo(); render(); saveCur(); };
+$('cam').onchange = e => { $('camAuto').checked = false; store('arremessos-cam-auto', '0'); const v = Math.min(20, Math.max(2, +e.target.value || 7)); e.target.value = v; store('arremessos-cam', v); A.setCam(v); applyGeo(); render(); saveCur(); renderLearn(); };
 // ---------- correção logo abaixo do vídeo ----------
 function showFix() {
   const S = A.shots, bar = $('fixBar');
@@ -1323,7 +1337,7 @@ function addMan(made) {
   const S = A.shots, t = reviewable && !vid.hidden ? vid.currentTime : (S.length ? S[S.length - 1].t + 1 : 0);
   sel = A.addManual(made, t); render(); saveCur();
 }
-$('ang').onchange = e => { store('arremessos-ang-v2', e.target.value); store('arremessos-ang', e.target.value); render(); renderHist(); };
+$('ang').onchange = e => { store('arremessos-ang-v4', e.target.value); applyGeo(); store('arremessos-ang', e.target.value); render(); renderHist(); };
 $('tb').addEventListener('click', e => {
   const r = e.target.closest('button[data-r]'); if (!r || !reviewable) return;
   const s = A.shots[+r.dataset.r]; if (!s) return;
@@ -1895,7 +1909,7 @@ function trainModel() {
 function renderLearn() {
   const P = profile || {}, sh = hist.reduce((n, h) => n + (+h.a || 0), 0);
   const row = (k, v, ok) => `<div class="lr"><span>${k}</span><b class="${ok ? 'ok' : 'wait'}">${v}</b></div>`;
-  const ang = +$('ang').value || 0, side = ang < 0 ? 'flanco esquerdo' : ang > 0 ? 'flanco direito' : 'de frente';
+  const ang = angDeg(), side = ang < 0 ? 'flanco esquerdo' : ang > 0 ? 'flanco direito' : 'de frente';
   const nf = v => v.toFixed(1).replace('.', ',');
   $('learn').innerHTML =
     row('Aro', P.hoop ? `${Math.round(P.hoop.cx * 100)}% da largura, ${Math.round(P.hoop.y * 100)}% da altura` + (P.hoopFixed ? ' (marcado por você)' : '') : 'procurando', !!P.hoop) +
@@ -2074,7 +2088,8 @@ function shotArc(s) { // altura do arco acima do aro, ângulo de saída e para o
 function setArcs() { for (const s of A.shots) { if (!s.arc) s.arc = shotArc(s); } }
 function setFeet() { const ph = proc.height || 270; for (const s of A.shots) { if (s.foot || s.manual) continue; const b = A.plBox(s.t - 0.7, s.t - 0.15); if (b) s.foot = [(b[0] + b[2]) / 2 / 480, b[3] / ph]; } }
 // medido na imagem de referência da sua quadra: horizonte (ponto de fuga das paredes) a 57% da altura e câmera a ~1,27 m do chão
-const FLOOR0 = { y0: 0.573, hc: 1.27 };
+const FLOOR0B = { y0: 0.573, hc: 1.27 };
+const FLOOR0 = { get hc() { return FLOOR0B.hc; }, get y0() { const h = A.hoop, ph = proc.height || 270; return h && h.w ? (h.y + (3.05 - this.hc) * h.w / 0.45) / ph : FLOOR0B.y0; } }; // horizonte calculado pelo aro (3,05 m) e pela altura da câmera
 function rimOf(F) { const h = A.hoop; if (!h) return null; const ph = proc.height || 270; return (F.y0 * ph - h.y) / h.w * 0.45 + F.hc; }
 function floorNow() { const F = FLOOR.fit; if (!F) return FLOOR0; const rr = rimOf(F); if (rr != null && Math.abs(rr - 3.05) > 0.6) return FLOOR0; /* o aprendido não bate com a altura do aro: fica com a medida da imagem */ const k = Math.min(1, F.n / 40); return { y0: F.y0 * k + FLOOR0.y0 * (1 - k), hc: F.hc * k + FLOOR0.hc * (1 - k), n: F.n }; }
 function floorGeo(ft) {
@@ -2086,9 +2101,9 @@ function floorGeo(ft) {
   return d < 20 ? { dx, dz, dist: d } : null;
 }
 function applyGeo() { for (const s of A.shots) { const g = floorGeo((s.body && s.body.f) || s.foot); if (g) s.geo = g; } }
-let CM = { L: 4.5, R: 0.3, B: 3.6 }; try { CM = Object.assign(CM, JSON.parse(store('arremessos-quadra-medidas') || '{}')); } catch (e) {}
-$('cmL').value = CM.L; $('cmR').value = CM.R; $('cmB').value = CM.B;
-for (const id of ['cmL', 'cmR', 'cmB']) $(id).onchange = () => { CM = { L: Math.max(0, +String($('cmL').value).replace(',', '.') || 0), R: Math.max(0, +String($('cmR').value).replace(',', '.') || 0), B: Math.max(0, +String($('cmB').value).replace(',', '.') || 0) }; store('arremessos-quadra-medidas', JSON.stringify(CM)); court(); };
+let CM = { L: 4.5, R: 0.3, B: 3.6, V: 25 }; try { CM = Object.assign(CM, JSON.parse(store('arremessos-quadra-medidas') || '{}')); } catch (e) {}
+$('cmL').value = CM.L; $('cmR').value = CM.R; $('cmB').value = CM.B; $('cmV').value = CM.V;
+for (const id of ['cmL', 'cmR', 'cmB', 'cmV']) $(id).onchange = () => { CM = { L: Math.max(0, +String($('cmL').value).replace(',', '.') || 0), R: Math.max(0, +String($('cmR').value).replace(',', '.') || 0), B: Math.max(0, +String($('cmB').value).replace(',', '.') || 0), V: Math.max(0, Math.min(80, +$('cmV').value || 0)) }; store('arremessos-quadra-medidas', JSON.stringify(CM)); court(); };
 function renderFloor() {
   const F = FLOOR.fit, h = A.hoop || (profile && profile.hoop ? { y: profile.hoop.y * (proc.height || 270), w: profile.hoop.w * 480 } : null);
   if (!F) { $('floorSt').innerHTML = `<div class="lr"><span>Altura da câmera</span><b class="ok">${FLOOR0.hc.toFixed(2).replace('.', ',')} m (da imagem de referência)</b></div><p class="note">Distâncias medidas pelos seus pés no chão. O app vai refinando sozinho com o reconhecimento do corpo: ${FLOOR.obs.length} de 8 posições suas vistas.</p>`; return; }
@@ -2216,7 +2231,7 @@ function calPersist() {
   return out;
 }
 let calOk = false;
-function calDone(text) { calib = null; calOk = true; A.reset(); liveSaid = []; $('hudL').innerHTML = `<span style="color:var(--ok)">${text}</span>`; if ($('spk').checked) say('Aro encontrado. Pode começar.', true); }
+function calDone(text) { calib = null; calOk = true; setTimeout(camMeasure, 300); A.reset(); liveSaid = []; $('hudL').innerHTML = `<span style="color:var(--ok)">${text}</span>`; if ($('spk').checked) say('Aro encontrado. Pode começar.', true); }
 function calTick() {
   if (!calib || mk) return;
   if (A.hoop && !A.fromPrior) { calDone('Aro encontrado ✓ Pode começar'); return; }
@@ -2295,7 +2310,7 @@ function liveStop() {
   clearInterval(liveT); liveT = null; if (mk) mkEnd(); calib = null;
   if (!live) return;
   running = false; const end = (performance.now() - startT) / 1000;
-  A.flush(end); A.finalize(); setFeet(); setArcs(); applyGeo();
+  A.flush(end); A.finalize(); camMeasure(); setFeet(); setArcs(); applyGeo();
   if (GOAL && liveEnding) while (A.shots.length > GOAL) A.remove(A.shots.length - 1);
   cur.dur = cur.t0 ? (Date.now() - cur.t0) / 1000 : 0;
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
@@ -2596,7 +2611,7 @@ async function fastAnalyze(file) {
   if (!stopped) { A.flush(info.dur); A.finalize(); } // decide cada arremesso olhando a trajetória completa
   if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
   if (!stopped && $('corpoOn').checked) { running = true; try { const nb = await bodyPass(file, info, cfg); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
-  if (!stopped) { setFeet(); setArcs(); learnFloor(); applyGeo(); renderFloor(); }
+  if (!stopped) { camMeasure(); setFeet(); setArcs(); learnFloor(); applyGeo(); renderFloor(); }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
   if (!stopped) $('pFill').style.width = '100%';
