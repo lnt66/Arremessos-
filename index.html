@@ -875,6 +875,10 @@ function createAnalyzer(opt) {
       out.push({ n: 0, t: s2.t0, made: p >= 0.5, p, f, occ, dNear: 1, doubt: false, rel: null, geo: null, hidden: true });
       recovered++;
     }
+    { // descarta o que claramente não foi arremesso: bola quase não vista no aro, era só o seu corpo, ou trajetória impossível
+      const keep = x => x.hidden || x.rev || x.p >= 0.5 || !((x.nearN != null && x.nearN <= 2) || (x.inBody >= 0.95 && x.nearN >= 5) || (x.f && x.f.xin > 18));
+      for (let k = out.length - 1; k >= 0; k--) if (!keep(out[k])) { out.splice(k, 1); rejected++; }
+    }
     for (const x of shots) if (x.manual) out.push(x);
     out.sort((a, b) => a.t - b.t);
     for (let i = out.length - 1; i > 0; i--) if (!out[i].manual && !out[i - 1].manual && out[i].t - out[i - 1].t < 1.35) { const keep = (out[i].f && out[i].f.cross && !(out[i - 1].f && out[i - 1].f.cross)) ? i : i - 1; out.splice(keep === i ? i - 1 : i, 1); dup++; } out.forEach((x, i) => x.n = i + 1);
@@ -2049,7 +2053,11 @@ function parseMoov(m) {
   }
   return null;
 }
-const yieldNow = () => new Promise(r => setTimeout(r, 0));
+const yieldNow = () => new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); }); // não é freado pelo navegador
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let wakeA = null;
+async function keepAwake(on) { try { if (on) { if (!wakeA) { wakeA = await navigator.wakeLock.request('screen'); wakeA.addEventListener('release', () => { wakeA = null; }); } } else if (wakeA) { const w = wakeA; wakeA = null; await w.release(); } } catch (e) { wakeA = null; } } // tela acesa enquanto analisa
+document.addEventListener('visibilitychange', () => { if (!document.hidden && fast) keepAwake(true); });
 try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} // app instalável e sem internet
 // ---------- abas ----------
 for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); if (b.dataset.t === 'comp') renderNBA(); };
@@ -2393,7 +2401,7 @@ function showBody(s) {
 async function bodyPass(file, info, cfg) {
   const L2 = A.shots.filter(s => !s.manual && s.t > 0.5); if (!L2.length) return 0;
   status('Carregando o reconhecimento do corpo…', 'warn');
-  const P = await loadPose(); if (!P) return -1;
+  const P = await Promise.race([loadPose(), sleep(30000).then(() => null)]); if (!P) return -1;
   const S = info.samples, ts = info.ts, cts0 = Math.min(...S.slice(0, 64).map(x => x.cts)), tm = x => (x.cts - cts0) / ts;
   const dw0 = info.rot % 180 ? info.h : info.w, dh0 = info.rot % 180 ? info.w : info.h, kf = Math.min(1, 1280 / dw0), FW = Math.round(dw0 * kf), FH = Math.round(dh0 * kf);
   const fc = document.createElement('canvas'); fc.width = FW; fc.height = FH; const fx = fc.getContext('2d', { willReadFrequently: false });
@@ -2431,7 +2439,7 @@ async function bodyPass(file, info, cfg) {
         while (dec.decodeQueueSize > 8) await yieldNow();
         dec.decode(new EncodedVideoChunk({ type: x.key && i === i0 ? 'key' : x.key ? 'key' : 'delta', timestamp: Math.round(x.cts / ts * 1e6), data: buf }));
       }
-      await dec.flush();
+      await Promise.race([dec.flush(), sleep(8000)]);
     } catch (e) {}
     try { dec.close(); } catch (e) {}
     const m = bodyMetrics(F, s.t);
@@ -2540,7 +2548,7 @@ async function fastAnalyze(file) {
   if (!info) return false;
   const cfg = { codec: info.codec, description: info.desc, codedWidth: info.w, codedHeight: info.h };
   try { const sp = await VideoDecoder.isConfigSupported(cfg); if (!sp.supported) return false; } catch (e) { return false; }
-  prep(); fast = true; vid.hidden = true; demoC.hidden = false;
+  prep(); fast = true; vid.hidden = true; demoC.hidden = false; keepAwake(true);
   cur.dur = info.dur; { const rd = recDate(lastMoov, file); if (rd) cur.date = rd; }
   status('Analisando o vídeo…', 'warn'); $('prog').hidden = false;
   const S = info.samples, n = S.length, ts = info.ts, cts0 = Math.min(...S.slice(0, 64).map(x => x.cts));
@@ -2571,8 +2579,8 @@ async function fastAnalyze(file) {
     $('pFill').style.width = (f * 100).toFixed(1) + '%';
     $('pTxt').textContent = `Analisando ${Math.round(f * 100)}% · ${fmtT(vt)} de ${fmtT(info.dur)}` + (left != null ? ` · faltam ~${left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left / 60) + ' min'}` : '');
   };
-  const dec = new VideoDecoder({
-    output: fr => {
+  const tmS = x => (x.cts - cts0) / ts;
+  const onFrame = fr => {
       try {
         const vt = (fr.timestamp / 1e6) - cts0 / ts;
         if (running && vt + 0.004 >= nextT) {
@@ -2587,44 +2595,56 @@ async function fastAnalyze(file) {
           }
           if (performance.now() - lastUI > 250) { lastUI = performance.now(); prog(vt); }
         }
-      } finally { fr.close(); done++; }
-    },
-    error: e => { failed = e; }
-  });
-  try { dec.configure(cfg); } catch (e) { return false; }
+      } finally { fr.close(); done++; lastOutAt = performance.now(); }
+  };
+  let lastOutAt = performance.now(), recov = 0, skipped = 0;
+  const mkDec = () => { const d = new VideoDecoder({ output: onFrame, error: e => { failed = e; } }); d.configure(cfg); return d; };
+  let dec; try { dec = mkDec(); } catch (e) { return false; }
   const wait = yieldNow;
   let i = 0;
-  while (i < n && running && !failed) {
+  while (i < n && running) {
+    if (failed) { // o decodificador falhou num trecho: recomeça no próximo quadro-chave e segue até o fim
+      if (++recov > 12) break;
+      try { dec.close(); } catch (e) {}
+      let k = i + 1; while (k < n && !S[k].key) k++;
+      if (k >= n) break;
+      skipped += tmS(S[k]) - tmS(S[Math.min(i, n - 1)]); i = k; failed = null;
+      try { dec = mkDec(); } catch (e) { failed = e; break; }
+      continue;
+    }
     const a = S[i].off; let j = i, end = a;
     while (j < n && S[j].off === end && end - a < 8e6) { end += S[j].size; j++; }
     if (j === i) { j = i + 1; end = a + S[i].size; }
-    const buf = await rdB(file, a, end - a);
+    let buf; try { buf = await rdB(file, a, end - a); } catch (e) { failed = e; continue; }
     for (let k = i; k < j; k++) {
-      while (dec.decodeQueueSize > 12 && running && !failed) await wait();
-      if (!running || failed) break;
+      const w0 = performance.now();
+      while (dec.decodeQueueSize > 12 && running && !failed) { await wait(); if (performance.now() - w0 > 10000 && performance.now() - lastOutAt > 10000 && !document.hidden) { failed = new Error('decodificador parado'); break; } }
+      if (!running || failed) { if (failed) i = k; break; }
       const x = S[k];
-      dec.decode(new EncodedVideoChunk({ type: x.key ? 'key' : 'delta', timestamp: Math.round(x.cts / ts * 1e6), duration: Math.round((x.dur || 0) / ts * 1e6), data: buf.subarray(x.off - a, x.off - a + x.size) }));
+      try { dec.decode(new EncodedVideoChunk({ type: x.key ? 'key' : 'delta', timestamp: Math.round(x.cts / ts * 1e6), duration: Math.round((x.dur || 0) / ts * 1e6), data: buf.subarray(x.off - a, x.off - a + x.size) })); } catch (e) { failed = e; i = k; break; }
     }
+    if (failed) continue;
     i = j;
     await wait();
   }
-  try { if (!failed && running) await dec.flush(); } catch (e) { failed = failed || e; }
+  try { if (!failed && running) await Promise.race([dec.flush(), sleep(20000)]); } catch (e) { failed = failed || e; }
   try { dec.close(); } catch (e) {}
-  if (failed && !A.shots.length && done < 5) { running = false; $('prog').hidden = true; return false; }
+  if (skipped > 0.5) failed = failed || new Error('trechos pulados');
+  if (failed && !A.shots.length && done < 5) { running = false; $('prog').hidden = true; keepAwake(false); return false; }
   const stopped = !running;
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
-  if (!stopped) { A.flush(info.dur); A.finalize(); } // decide cada arremesso olhando a trajetória completa
+  if (!stopped) { try { A.flush(info.dur); A.finalize(); } catch (e) { console.error(e); } } // decide cada arremesso olhando a trajetória completa
   if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
-  if (!stopped && $('corpoOn').checked) { running = true; try { const nb = await bodyPass(file, info, cfg); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
-  if (!stopped) { camMeasure(); setFeet(); setArcs(); learnFloor(); applyGeo(); renderFloor(); }
+  if (!stopped && $('corpoOn').checked) { running = true; try { const lim = Math.max(90, 4 * A.shots.length) * 1000; const nb = await Promise.race([bodyPass(file, info, cfg), sleep(lim).then(() => { running = false; return 0; })]); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
+  if (!stopped) for (const fn of [camMeasure, setFeet, setArcs, learnFloor, applyGeo, renderFloor]) { try { fn(); } catch (e) { console.error(e); } }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
   if (!stopped) $('pFill').style.width = '100%';
   status((A.hoop ? 'Vídeo analisado: ' : 'Aro não encontrado no vídeo · ') + A.shots.length + ' arremessos. Toque em ▶ para rever', A.hoop ? 'on' : 'warn');
   vid.currentTime = 0; octx.clearRect(0, 0, ov.width, ov.height);
-  if (failed) msg('Parte do vídeo não pôde ser lida; os arremessos até ali foram contados.');
-  render(); saveCur(); if (!stopped) commitLearning(); showDoubt(); showDiag();
-  $('narrBar').hidden = true;
+  if (failed) msg(skipped > 0.5 ? `Um trecho de ${Math.round(skipped)} s do vídeo estava com defeito e foi pulado; o resto foi analisado até o fim.` : 'Parte do vídeo não pôde ser lida; os arremessos até ali foram contados.');
+  for (const fn of [render, saveCur, () => { if (!stopped) commitLearning(); }, showDoubt, showDiag]) { try { fn(); } catch (e) { console.error(e); } }
+  $('narrBar').hidden = true; keepAwake(false);
   return true;
 }
 
