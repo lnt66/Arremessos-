@@ -194,6 +194,7 @@ tr.cur td{background:#2b2012}
         <div class="fixbtns sm"><button id="fxAgain">▶ Ver o arremesso</button><button id="fxZoom"></button><button id="fxDel">Não foi arremesso</button><button id="fxAdd">+ Faltou um aqui</button></div>
       </div>
       <div class="prog" id="prog" hidden><div class="pbar"><i id="pFill"></i></div><span id="pTxt"></span></div>
+      <div class="note" id="bodyNote" hidden style="margin:6px 2px"></div>
       <div class="msg" id="msg"></div>
       <div class="btns" id="narrBar" hidden><button class="main" id="bNarr">▶ Assistir com narração</button><select id="nSpd" aria-label="Velocidade"><option value="1">Normal</option><option value="1.5">1,5x</option><option value="2">2x</option></select><button id="bSum">Resumo falado</button></div>
       <div class="diag" id="diag" hidden></div>
@@ -1202,6 +1203,7 @@ async function startFile(file) {
   if (vid.readyState >= 2) go(); else vid.onloadeddata = go;
 }
 function prep() {
+  bodyTok++; $('bodyNote').hidden = true;
   demoC.hidden = true; vid.hidden = false; demo = null; fast = false; reviewable = false; $('prog').hidden = true; $('doubtBar').hidden = true; $('revBox').hidden = true; $('diag').hidden = true; rq = null; markMode = false; $('markBar').hidden = true;
   A.relearn(); A.reset(); newSession(); viewSess = null; running = true; startT = performance.now(); foundAt = null; trail = [];
   $('empty').hidden = true; $('chip').hidden = false; $('bStop').hidden = false;
@@ -3218,57 +3220,79 @@ function showBody(s) {
   const hd = p(0);
   $('fxFig').innerHTML = seg(11, 12, '#ddd') + seg(23, 24, '#ddd') + seg(11, 23, '#ddd') + seg(12, 24, '#ddd') + seg(23, 25, '#3fd0e0') + seg(25, 27, '#3fd0e0') + seg(24, 26, '#3fd0e0') + seg(26, 28, '#3fd0e0') + seg(11, 13, cL) + seg(13, 15, cL) + seg(12, 14, cR) + seg(14, 16, cR) + `<circle cx="${hd[0]}" cy="${hd[1]}" r="4" fill="#ddd"/>`;
 }
-async function bodyPass(file, info, cfg) {
+let bodyTok = 0;
+// corpo: um decodificador só, lendo cada trecho do vídeo de uma vez; quadros densos perto da soltura e espaçados antes e depois
+async function bodyPass(file, info, cfg, tok, onShot) {
   const L2 = A.shots.filter(s => !s.manual && s.t > 0.5); if (!L2.length) return 0;
-  status('Carregando o reconhecimento do corpo…', 'warn');
   const P = await Promise.race([loadPose(), sleep(150000).then(() => null)]); if (!P) return -1;
+  if (tok !== bodyTok) return 0;
   const S = info.samples, ts = info.ts, cts0 = Math.min(...S.slice(0, 64).map(x => x.cts)), tm = x => (x.cts - cts0) / ts;
   const dw0 = info.rot % 180 ? info.h : info.w, dh0 = info.rot % 180 ? info.w : info.h, kf = Math.min(1, 1280 / dw0), FW = Math.round(dw0 * kf), FH = Math.round(dh0 * kf);
   const fc = document.createElement('canvas'); fc.width = FW; fc.height = FH; const fx = fc.getContext('2d', { willReadFrequently: false });
   const cc = document.createElement('canvas'), cx2 = cc.getContext('2d');
   const k480 = FW / 480;
+  const plan = s => { const T = []; for (let t = s.t - 1.6; t < s.t - 0.5; t += 0.18) T.push(t); for (let t = s.t - 0.5; t <= s.t + 0.3001; t += 0.066) T.push(t); for (let t = s.t + 0.42; t <= s.t + 0.6001; t += 0.18) T.push(t); return T; };
+  let C = null; // trecho atual: { want, wi, F, crop, cw, ch }
+  const onFrame = fr => { try {
+    if (!C) return; const vt = fr.timestamp / 1e6 - cts0 / ts;
+    while (C.wi < C.want.length && C.want[C.wi] < vt - 0.02) C.wi++;
+    if (C.wi >= C.want.length || vt < C.want[C.wi] - 0.02) return;
+    while (C.wi < C.want.length && C.want[C.wi] <= vt + 0.02) C.wi++;
+    const r = info.rot, crop = C.crop;
+    if (!r) fx.drawImage(fr, 0, 0, FW, FH); else { if (r === 90) fx.setTransform(0, 1, -1, 0, FW, 0); else if (r === 270) fx.setTransform(0, -1, 1, 0, 0, FH); else fx.setTransform(-1, 0, 0, -1, FW, FH); if (r === 180) fx.drawImage(fr, 0, 0, FW, FH); else fx.drawImage(fr, 0, 0, FH, FW); fx.setTransform(1, 0, 0, 1, 0, 0); }
+    cx2.drawImage(fc, crop[0] * k480, crop[1] * k480, C.cw, C.ch, 0, 0, cc.width, cc.height);
+    if (GAIN) { const im = cx2.getImageData(0, 0, cc.width, cc.height); boost(im.data); cx2.putImageData(im, 0, 0); }
+    poseTs += 40;
+    const res = P.detectForVideo(cc, poseTs), lm = res && res.landmarks && res.landmarks[0];
+    C.F.push({ t: vt, lm: lm ? lm.map(q => ({ x: crop[0] + q.x * crop[2], y: crop[1] + q.y * crop[3], v: q.visibility == null ? 1 : q.visibility })) : null });
+  } finally { fr.close(); } };
+  let dec = null; const mkDec = () => { try { if (dec) dec.close(); } catch (e) {} dec = new VideoDecoder({ output: onFrame, error: () => {} }); dec.configure(cfg); };
+  try { mkDec(); } catch (e) { return 0; }
   let ok = 0, done = 0;
   for (const s of L2) {
-    if (!running && done) break;
+    if (tok !== bodyTok) break;
     const tA = s.t - 1.6, tB = s.t + 0.6;
     let box = A.plBox(tA, tB), crop;
     if (box) { const bw = box[2] - box[0], bh = box[3] - box[1], cxm = (box[0] + box[2]) / 2, cym = (box[1] + box[3]) / 2; const hh = Math.max(bh * 1.5, bw * 1.2, 60), ww = Math.max(bw * 1.6, hh * 0.8); crop = [Math.max(0, cxm - ww / 2), Math.max(0, cym - hh / 2), 0, 0]; crop[2] = Math.min(480 - crop[0], ww); crop[3] = Math.min(FH / k480 - crop[1], hh); }
     else crop = [0, 0, 480, FH / k480];
-    const cw = crop[2] * k480, ch = crop[3] * k480, sc2 = Math.min(1, 640 / Math.max(cw, ch));
+    const cw = crop[2] * k480, ch = crop[3] * k480, sc2 = Math.min(1, 512 / Math.max(cw, ch));
     cc.width = Math.max(16, Math.round(cw * sc2)); cc.height = Math.max(16, Math.round(ch * sc2));
     let i0 = 0; for (let i = 0; i < S.length; i++) if (S[i].key && tm(S[i]) <= tA) i0 = i; else if (S[i].key && tm(S[i]) > tA) break;
-    const F = []; let nextT = tA;
-    const dec = new VideoDecoder({ output: fr => { try {
-      const vt = fr.timestamp / 1e6 - cts0 / ts;
-      if (vt >= tA && vt <= tB && vt + 0.004 >= nextT) {
-        nextT = vt + 0.06;
-        const r = info.rot;
-        if (!r) fx.drawImage(fr, 0, 0, FW, FH); else { if (r === 90) fx.setTransform(0, 1, -1, 0, FW, 0); else if (r === 270) fx.setTransform(0, -1, 1, 0, 0, FH); else fx.setTransform(-1, 0, 0, -1, FW, FH); if (r === 180) fx.drawImage(fr, 0, 0, FW, FH); else fx.drawImage(fr, 0, 0, FH, FW); fx.setTransform(1, 0, 0, 1, 0, 0); }
-        cx2.drawImage(fc, crop[0] * k480, crop[1] * k480, cw, ch, 0, 0, cc.width, cc.height);
-        if (GAIN) { const im = cx2.getImageData(0, 0, cc.width, cc.height); boost(im.data); cx2.putImageData(im, 0, 0); }
-        poseTs += 40;
-        const res = P.detectForVideo(cc, poseTs), lm = res && res.landmarks && res.landmarks[0];
-        F.push({ t: vt, lm: lm ? lm.map(q => ({ x: crop[0] + q.x * crop[2], y: crop[1] + q.y * crop[3], v: q.visibility == null ? 1 : q.visibility })) : null });
-      }
-    } finally { fr.close(); } }, error: () => {} });
+    let i1 = i0; while (i1 + 1 < S.length && tm(S[i1 + 1]) <= tB + 0.5) i1++;
+    C = { want: plan(s), wi: 0, F: [], crop, cw, ch };
     try {
-      dec.configure(cfg);
-      for (let i = i0; i < S.length; i++) {
-        const x = S[i]; if (i > i0 && tm(x) > tB + 0.5) break;
-        const buf = await rdB(file, x.off, x.size);
+      if (dec.state === 'closed') mkDec();
+      let lo = Infinity, hi = 0; for (let i = i0; i <= i1; i++) { lo = Math.min(lo, S[i].off); hi = Math.max(hi, S[i].off + S[i].size); }
+      const big = hi - lo <= 24e6 ? await rdB(file, lo, hi - lo) : null; // o trecho inteiro numa leitura só
+      for (let i = i0; i <= i1; i++) {
+        const x = S[i], data = big ? big.subarray(x.off - lo, x.off - lo + x.size) : await rdB(file, x.off, x.size);
         while (dec.decodeQueueSize > 8) await yieldNow();
-        dec.decode(new EncodedVideoChunk({ type: x.key && i === i0 ? 'key' : x.key ? 'key' : 'delta', timestamp: Math.round(x.cts / ts * 1e6), data: buf }));
+        dec.decode(new EncodedVideoChunk({ type: i === i0 || x.key ? 'key' : 'delta', timestamp: Math.round(x.cts / ts * 1e6), data }));
       }
       await Promise.race([dec.flush(), sleep(8000)]);
-    } catch (e) {}
-    try { dec.close(); } catch (e) {}
+    } catch (e) { try { mkDec(); } catch (x) {} }
+    const F = C.F; C = null;
     const m = bodyMetrics(F, s.t); try { s.trk = poseTrk(F); } catch (e) {}
     if (m) { if (s.body && s.body.hf) m.h = s.body.h, m.hf = 1; s.body = m; ok++; }
-    done++;
-    $('pFill').style.width = (100 * done / L2.length).toFixed(1) + '%'; $('pTxt').textContent = `Analisando o seu corpo: arremesso ${done} de ${L2.length}`;
+    done++; try { onShot && onShot(s, done, L2.length); } catch (e) {}
     await yieldNow();
   }
+  try { dec.close(); } catch (e) {}
   return ok;
+}
+// depois do placar pronto: movimentos em segundo plano, aparecendo aos poucos
+async function bgBody(file, info, cfg) {
+  const tok = ++bodyTok, total = A.shots.filter(s => !s.manual && s.t > 0.5).length, t0 = performance.now();
+  const note = t => { const el = $('bodyNote'); el.textContent = t; el.hidden = !t; };
+  if (!total) return;
+  keepAwake(true); note(`Placar pronto. Analisando os movimentos em segundo plano: 0 de ${total}…`);
+  let nb = 0;
+  try { nb = await bodyPass(file, info, cfg, tok, (s, d) => { if (tok !== bodyTok) return; note(`Analisando os movimentos em segundo plano: ${d} de ${total}…`); if (d % 8 === 0) { try { applyGeo(); classifyAll(); render(); } catch (e) {} } }); } catch (e) { console.error(e); }
+  if (tok !== bodyTok) return;
+  for (const fn of [setFeet, learnFloor, applyGeo, classifyAll, renderFloor, render, saveCur]) { try { fn(); } catch (e) { console.error(e); } }
+  keepAwake(false);
+  note(nb < 0 ? 'Não consegui carregar o reconhecimento do corpo (precisa de internet). O placar está certo; os movimentos ficaram só pela bola.' : nb === 0 ? 'Não consegui ver o seu corpo direito neste vídeo: grave com você inteiro na imagem. O placar está certo.' : `Movimentos prontos (${nb} arremessos, em ${Math.round((performance.now() - t0) / 1000)} s).`);
+  setTimeout(() => { if (tok === bodyTok) note(''); }, 10000);
 }
 // ---------- teste do reconhecimento do corpo: mostra o esqueleto num momento de arremesso do último vídeo ----------
 $('bPoseT').onclick = async () => {
@@ -3455,7 +3479,6 @@ async function fastAnalyze(file) {
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
   if (!stopped) { try { A.flush(info.dur); A.finalize(); } catch (e) { console.error(e); } } // decide cada arremesso olhando a trajetória completa
   if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
-  if (!stopped && $('corpoOn').checked) { running = true; try { const lim = Math.max(90, 4 * A.shots.length) * 1000; const nb = await Promise.race([bodyPass(file, info, cfg), sleep(lim).then(() => { running = false; return 0; })]); if (nb < 0) msg('Não consegui carregar o reconhecimento do corpo (precisa de internet e da versão do GitHub). Contei só bola e aro.'); else if (nb === 0 && A.shots.length) msg('Não consegui ver o seu corpo direito neste vídeo. Grave com você inteiro na imagem.'); } catch (e) {} running = false; }
   if (!stopped) for (const fn of [camMeasure, setFeet, setArcs, learnFloor, applyGeo, classifyAll, renderFloor]) { try { fn(); } catch (e) { console.error(e); } }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
@@ -3467,6 +3490,7 @@ async function fastAnalyze(file) {
   try { if (A.hoop && A.shots.length && !/class="bad"/.test($('diag').innerHTML)) { previewShot(0); status('Vídeo analisado: ' + A.shots.length + ' arremessos. Confira cada um logo abaixo do vídeo', 'on'); } } catch (e) {}
   $('narrBar').hidden = true; keepAwake(false);
   if (!stopped) setTimeout(() => { try { checkAch(true); } catch (e) {} }, 800);
+  if (!stopped && $('corpoOn').checked && A.shots.length) bgBody(file, info, cfg);
   return true;
 }
 
