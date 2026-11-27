@@ -191,7 +191,7 @@ tr.cur td{background:#2b2012}
         <div class="fixbtns"><button class="big ok" id="fxC">✓ Cesta</button><button class="big no" id="fxE">✗ Erro</button></div>
         <div class="note" id="fxArc" style="margin:6px 2px 0"></div>
         <div class="body" id="fxBody" hidden><svg id="fxFig" viewBox="0 0 60 90" width="60" height="90" aria-hidden="true"></svg><div><div id="fxBTxt"></div><div class="hb"><span>Mão:</span><button id="fxHD">Direita</button><button id="fxHE">Esquerda</button></div></div></div>
-        <div class="fixbtns sm"><button id="fxAgain">↻ Ver de novo</button><button id="fxDel">Não foi arremesso</button><button id="fxAdd">+ Faltou um aqui</button></div>
+        <div class="fixbtns sm"><button id="fxAgain">▶ Ver o arremesso</button><button id="fxZoom"></button><button id="fxDel">Não foi arremesso</button><button id="fxAdd">+ Faltou um aqui</button></div>
       </div>
       <div class="prog" id="prog" hidden><div class="pbar"><i id="pFill"></i></div><span id="pTxt"></span></div>
       <div class="msg" id="msg"></div>
@@ -1208,7 +1208,7 @@ function begin() {
   loop();
 }
 function stopAll() {
-  running = false; demo = null; reviewing = false; clearTimeout(revTimer);
+  running = false; demo = null; reviewing = false; clearTimeout(revTimer); try { stopClip(); vid.style.transform = ''; } catch (e) {}
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   vid.pause(); $('bStop').hidden = true;
 }
@@ -1443,11 +1443,8 @@ $('ang').onchange = e => { store('arremessos-ang-v4', e.target.value); applyGeo(
 $('tb').addEventListener('click', e => {
   const r = e.target.closest('button[data-r]'); if (!r || !reviewable) return;
   const s = A.shots[+r.dataset.r]; if (!s) return;
-  sel = +r.dataset.r; delArm2 = null; render();
-  reviewing = true; demoC.hidden = true; vid.hidden = false; octx.clearRect(0, 0, ov.width, ov.height);
-  vid.currentTime = Math.max(0, s.t - 1.5); vid.play().catch(() => {});
+  sel = +r.dataset.r; delArm2 = null; render(); playClip(s);
   status('Arremesso ' + s.n + ': está certo? Corrija logo abaixo do vídeo', 'on');
-  clearTimeout(revTimer); revTimer = setTimeout(() => vid.pause(), 4500);
   $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 $('tb').onclick = e => { const b = e.target.closest('button[data-i]'); if (b) { sel = +b.dataset.i; A.flip(sel); render(); saveCur(); showDoubt(); } };
@@ -1553,11 +1550,43 @@ function showDoubt() { $('doubtBar').hidden = true; return; // sem conferência:
   $('doubtTxt').textContent = n ? `${n} arremesso${n > 1 ? 's' : ''} com dúvida. Confira em poucos segundos para o placar ficar 100% certo e o app aprender.` : 'Nenhum arremesso com dúvida. Se quiser, confira todos.';
   $('bDoubt').hidden = !n;
 }
-function playClip(s) {
-  reviewing = true; demoC.hidden = true; vid.hidden = false; octx.clearRect(0, 0, ov.width, ov.height);
-  vid.currentTime = Math.max(0, s.t - 1.5); vid.play().catch(() => {});
-  clearTimeout(revTimer); revTimer = setTimeout(() => vid.pause(), 4800);
+// ---------- rever um arremesso: clipe curto, câmera lenta e zoom no aro na hora em que a bola chega ----------
+const rimT = s => (s.f && s.f.tc) || (s.ta ? s.ta + 0.8 : s.t + 1.6);
+const zoomOn = () => store('arremessos-zoom') !== '0';
+let clip = null;
+function zoomVid(on) {
+  const h = A.hoop;
+  if (!on || !h || !proc.width || !vid.videoWidth) { vid.style.transform = ''; return; }
+  const r = vid.getBoundingClientRect(), vw = vid.videoWidth, vh = vid.videoHeight; if (!r.width) return;
+  const k = Math.min(r.width / vw, r.height / vh), ox = (r.width - vw * k) / 2, oy = (r.height - vh * k) / 2;
+  const px = ox + h.cx / proc.width * vw * k, py = oy + h.y / proc.height * vh * k, rw = h.w / proc.width * vw * k;
+  const Z = Math.max(1.5, Math.min(4, r.width * 0.16 / Math.max(1, rw)));
+  vid.style.transformOrigin = '0 0'; vid.style.transition = 'transform .35s ease';
+  vid.style.transform = `translate(${(r.width / 2 - px * Z).toFixed(1)}px,${(r.height * 0.5 - py * Z).toFixed(1)}px) scale(${Z.toFixed(2)})`;
 }
+function stopClip() { $('chip').style.opacity = ''; if (clip) { if (clip.raf) cancelAnimationFrame(clip.raf); vid.removeEventListener('seeked', clip.go); } clip = null; vid.playbackRate = 1; }
+function showVid() { reviewing = true; clearTimeout(revTimer); demoC.hidden = true; vid.hidden = false; $('diag').hidden = true; octx.clearRect(0, 0, ov.width, ov.height); }
+function playClip(s) { // do lançamento até logo depois do aro; perto do aro fica em câmera lenta e aproxima
+  stopClip(); showVid(); zoomVid(false); vid.muted = true;
+  const my = { s, tr: rimT(s), end: rimT(s) + 1.2, z: false, t0: 0 }; clip = my;
+  const tick = () => {
+    if (clip !== my) return; const t = vid.currentTime;
+    if (!my.z && t >= my.tr - 0.5) { my.z = true; if (zoomOn()) { zoomVid(true); vid.playbackRate = 0.5; } }
+    if (t >= my.end || vid.ended || performance.now() - my.t0 > 15000) { vid.pause(); vid.playbackRate = 1; clip = null; $('chip').style.opacity = ''; return; }
+    my.raf = requestAnimationFrame(tick);
+  };
+  my.go = () => { if (clip !== my) return; my.t0 = performance.now(); vid.play().then(() => { if (clip === my) my.raf = requestAnimationFrame(tick); }).catch(() => status('Toque em ▶ Ver o arremesso para assistir', 'warn')); };
+  vid.addEventListener('seeked', my.go, { once: true }); $('chip').style.opacity = '0'; // o aviso não tampa a bola chegando
+  vid.currentTime = Math.max(0, s.t - 1.0);
+}
+function previewShot(i) { // mostra parado o momento em que a bola chega ao aro
+  const s = A.shots[i]; if (!s) return; stopClip(); showVid(); sel = i; render();
+  const done = () => { vid.removeEventListener('seeked', done); if (zoomOn()) zoomVid(true); };
+  vid.addEventListener('seeked', done); vid.pause(); vid.currentTime = Math.max(0, rimT(s) - 0.05);
+}
+function zoomBtn() { $('fxZoom').textContent = '🔍 Zoom no aro: ' + (zoomOn() ? 'sim' : 'não'); }
+zoomBtn();
+$('fxZoom').onclick = () => { store('arremessos-zoom', zoomOn() ? '0' : '1'); zoomBtn(); if (!zoomOn()) zoomVid(false); else if (vid.paused && !vid.hidden && reviewable) zoomVid(true); };
 function startReview(all) {
   rq = A.shots.map((s, i) => i).filter(i => !A.shots[i].manual && (all || (A.shots[i].doubt && !A.shots[i].rev)));
   if (!rq.length) { rq = null; return; }
@@ -3210,6 +3239,7 @@ async function fastAnalyze(file) {
   vid.currentTime = 0; octx.clearRect(0, 0, ov.width, ov.height);
   if (failed) msg(skipped > 0.5 ? `Um trecho de ${Math.round(skipped)} s do vídeo estava com defeito e foi pulado; o resto foi analisado até o fim.` : 'Parte do vídeo não pôde ser lida; os arremessos até ali foram contados.');
   for (const fn of [render, saveCur, () => { if (!stopped) commitLearning(); }, showDoubt, showDiag]) { try { fn(); } catch (e) { console.error(e); } }
+  try { if (A.hoop && A.shots.length && !/class="bad"/.test($('diag').innerHTML)) { previewShot(0); status('Vídeo analisado: ' + A.shots.length + ' arremessos. Confira cada um logo abaixo do vídeo', 'on'); } } catch (e) {}
   $('narrBar').hidden = true; keepAwake(false);
   if (!stopped) setTimeout(() => { try { checkAch(true); } catch (e) {} }, 800);
   return true;
