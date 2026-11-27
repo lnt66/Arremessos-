@@ -142,7 +142,7 @@ tr.cur td{background:#2b2012}
 .hudgoal{font-size:.5em;color:#ddd}
 .bkrem{margin-top:10px;background:#2a1f12;border:1px solid #6b4a1e;border-radius:12px;padding:10px;font:600 14px/1.4 Barlow,sans-serif;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .gbar{height:14px;background:#0b0907;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:4px 0 10px}.gbar i{display:block;height:100%;background:var(--ok)}
-.cmp{display:grid;gap:8px;margin:8px 0}.cmp .pl{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px}.cmp .pl b{font:800 22px "Barlow Condensed",sans-serif}.cmp .pl .sim{float:right;font:800 26px "Barlow Condensed",sans-serif;color:var(--cyan)}
+.cmp{display:grid;gap:8px;margin:8px 0}.cmp .ava{float:left;width:56px;height:56px;border-radius:50%;margin:2px 10px 4px 0;display:grid;place-items:center;background:#1f2a2c;border:2px solid var(--cyan);color:var(--cyan);font:800 22px "Barlow Condensed",sans-serif}.cmp .pl{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px}.cmp .pl b{font:800 22px "Barlow Condensed",sans-serif}.cmp .pl .sim{float:right;font:800 26px "Barlow Condensed",sans-serif;color:var(--cyan)}
 .zb{display:grid;grid-template-columns:5.2em 1fr 3.2em;gap:6px;align-items:center;font-size:13px;margin:3px 0}.zb .bar{height:12px;background:#0b0907;border-radius:6px;position:relative;overflow:hidden}.zb .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ball)}.zb .bar u{position:absolute;left:0;top:7px;bottom:0;background:var(--cyan);text-decoration:none}
 .tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.tags span{background:#2a1f12;border:1px solid #6b4a1e;border-radius:99px;padding:4px 10px;font:600 13px Barlow,sans-serif}
 .progs{display:grid;gap:8px;margin:8px 0}.prog2{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px}.prog2 b{font:800 20px "Barlow Condensed",sans-serif}.prog2 small{display:block;color:var(--mute);font-size:13px;line-height:1.35}.prog2 .rec{color:var(--cyan);font-weight:600}.prog2 button{min-height:48px;background:var(--ball);color:#1a0c03;border-color:var(--ball);font-weight:800}
@@ -229,7 +229,6 @@ tr.cur td{background:#2b2012}
         <label class="row"><input type="checkbox" id="corpoOn" checked> Analisar o corpo: mão do arremesso, salto, braço e joelho (precisa de internet)</label>
         <div class="btns"><button id="bPoseT">Testar o reconhecimento do corpo</button></div>
         <div id="poseT" hidden><p class="note" id="poseTxt"></p><canvas id="poseC" style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line)"></canvas></div>
-        <label class="row"><input type="checkbox" id="somOn"> Analisar também o som (barulho no aro, na tabela, na rede)</label>
         <input type="checkbox" id="narrOn" hidden>
         <label class="row"><input type="checkbox" id="iaView"> Mostrar o que a IA está vendo (laranja = bola, azul = aro)</label>
         <label class="row"><input type="checkbox" id="camAuto" checked> Medir sozinho a distância e a posição da câmera (pelo tamanho do aro na imagem)</label>
@@ -1124,10 +1123,8 @@ let A = createAnalyzer({ hfov: 68, camDist: camSaved || 7, profile }), stream = 
 const store = (k, v) => { try { v === undefined ? 0 : localStorage.setItem(k, v); return localStorage.getItem(k); } catch (e) { return null; } };
 $('cam').value = camSaved || 7;
 $('ang').value = store('arremessos-ang-v4') || '0';
-$('somOn').checked = store('arremessos-som') === '1';
 $('corpoOn').checked = store('arremessos-corpo') !== '0'; $('corpoOn').onchange = e => store('arremessos-corpo', e.target.checked ? '1' : '0');
 $('luz').value = store('arremessos-luz') || 'auto'; $('luz').onchange = e => store('arremessos-luz', e.target.value);
-$('somOn').onchange = e => store('arremessos-som', e.target.checked ? '1' : '0');
 // posição no chão da quadra (cesta na origem, quadra para baixo, direita do jogador = +x), a partir da visão da câmera
 // câmera: o celular é o mesmo, então a lente é a mesma; o tamanho do aro na imagem dá a distância
 const FNORM = 0.4552; // distância focal ÷ largura da imagem, medida no seu vídeo de referência (aro de 0,45 m a 7 m)
@@ -1890,7 +1887,7 @@ function renderNBA() {
   $('style').innerHTML = `<div class="tags">${tags.map(t => `<span>${t}</span>`).join('')}</div>${lines.map(l => `<p style="margin:6px 0">${l}</p>`).join('')}<h3>Onde você arremessa</h3>${zoneBars(M.z)}<p class="note">Zonas iguais às da NBA (em metros). Baseado nos seus ${M.N} arremessos mais recentes. Arremessos de 3 pontos da NBA são a partir de 7,24 m.</p>`;
   // ---- jogadores mais parecidos
   const R = NBAP.map(p => ({ p, s: nbaSim(M, p) })).sort((a, b) => b.s - a.s);
-  const card = (o, i) => { const p = o.p; return `<div class="pl"><span class="sim">${o.s}%</span><small>${i === 0 ? 'Mais parecido' : (i + 1) + 'º'} · ${p[1]} · ${htm(p[2])} · ${p[3] - 1}–${p[4] === 2027 ? 'hoje' : p[4]}</small><br><b>${esc(p[0])}</b><br><small style="color:var(--mute)">Arremessa em média de ${ftm(p[5])} · ${pctS(p[10])} de 3 · ${pctS(p[6])} colado na cesta · lance livre ${pctS(p[16])}</small>${p[21] ? `<br><a href="https://www.basketball-reference.com/players/${p[21][0]}/${p[21]}.html" target="_blank" rel="noopener" style="color:var(--cyan);font-size:13px">Ver carreira e estatísticas ↗</a>` : ''}</div>`; };
+  const card = (o, i) => { const p = o.p, ini = p[0].split(/\s+/).filter(w => /^[A-ZÀ-Ý]/.test(w)).slice(0, 2).map(w => w[0]).join(''); return `<div class="pl">${i === 0 ? `<span class="ava" aria-hidden="true">${esc(ini)}</span>` : ''}<span class="sim">${o.s}%</span><small>${i === 0 ? 'Mais parecido' : (i + 1) + 'º'} · ${p[1]} · ${htm(p[2])} · ${p[3] - 1}–${p[4] === 2027 ? 'hoje' : p[4]}</small><br><b>${esc(p[0])}</b><br><small style="color:var(--mute)">Arremessa em média de ${ftm(p[5])} · ${pctS(p[10])} de 3 · ${pctS(p[6])} colado na cesta · lance livre ${pctS(p[16])}</small>${p[21] ? `<br><a href="https://www.basketball-reference.com/players/${p[21][0]}/${p[21]}.html" target="_blank" rel="noopener" style="color:var(--cyan);font-size:13px">${i === 0 ? 'Ver fotos, carreira e estatísticas ↗' : 'Ver carreira e estatísticas ↗'}</a>` : ''}</div>`; };
   const top = R[0].p;
   $('nbaSim').innerHTML = `<div class="cmp">${R.slice(0, 5).map(card).join('')}</div><h3>Você × ${esc(top[0])}</h3><div class="legend"><span><i style="background:var(--ball)"></i>Você</span><span><i style="background:var(--cyan)"></i>${esc(top[0])}</span></div>${zoneBars(M.z, top.slice(6, 11))}<p class="note">Comparação entre ${NBAP.length} jogadores da NBA (1997 até hoje), pelas estatísticas reais de onde cada um arremessa, onde acerta mais e altura. Você treina sem marcação, então o seu aproveitamento entra só como "onde você é melhor ou pior que a sua média". Dados: Basketball-Reference (temporadas de 1996-97 em diante), pelo conjunto de dados público de Sumitro Datta.</p>`;
   try { const W = nbaWhy(M, top), C = $('nbaSim').querySelector('.cmp'); if (C) C.insertAdjacentHTML('afterend', `<div class="why"><h3>Por que ${esc(top[0])}</h3>${W.same.length ? '<p style="margin:4px 0"><b>Parecidos:</b> ' + W.same.join('; ') + '.</p>' : ''}${W.diff.length ? '<p style="margin:4px 0"><b>Diferentes:</b> ' + W.diff.join('; ') + '.</p>' : ''}<p class="note">Critérios usados: distância média, onde arremessa (5 zonas), acerto por zona, altura, porte físico, lance livre, zona morta, pega e arremessa × depois do drible, salto e os movimentos marca de cada jogador (step back, fadeaway, floater, euro step, gancho, crossover, jab, giro, pump fake, hesitação, side step).${M.u ? '' : ' Os movimentos entram na conta quando houver 25 arremessos com o tipo detectado.'}</p></div>`); } catch (e) { console.error(e); }
@@ -3522,7 +3519,6 @@ async function fastAnalyze(file) {
   const stopped = !running;
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
   if (!stopped) { try { A.flush(info.dur); A.finalize(); applyPend(); } catch (e) { console.error(e); } } pendFx = []; // decide cada arremesso olhando a trajetória completa
-  if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
   if (!stopped) for (const fn of [camMeasure, setFeet, setArcs, learnFloor, applyGeo, classifyAll, renderFloor]) { try { fn(); } catch (e) { console.error(e); } }
   prog(stopped ? 0 : info.dur);
   $('pTxt').textContent = (stopped ? 'Análise interrompida' : 'Análise concluída') + ` em ${Math.round((performance.now() - t0w) / 1000)} s · vídeo de ${fmtT(info.dur)}`;
