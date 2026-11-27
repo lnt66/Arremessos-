@@ -1203,7 +1203,7 @@ async function startFile(file) {
   if (vid.readyState >= 2) go(); else vid.onloadeddata = go;
 }
 function prep() {
-  bodyTok++; $('bodyNote').hidden = true;
+  pendFx = []; selPin = false; anaVt = 0; bodyTok++; $('bodyNote').hidden = true;
   demoC.hidden = true; vid.hidden = false; demo = null; fast = false; reviewable = false; $('prog').hidden = true; $('doubtBar').hidden = true; $('revBox').hidden = true; $('diag').hidden = true; rq = null; markMode = false; $('markBar').hidden = true;
   A.relearn(); A.reset(); newSession(); viewSess = null; running = true; startT = performance.now(); foundAt = null; trail = [];
   $('empty').hidden = true; $('chip').hidden = false; $('bStop').hidden = false;
@@ -1408,13 +1408,35 @@ $('bReset').onclick = () => { A.reset(); newSession(); render(); };
 $('camAuto').checked = store('arremessos-cam-auto') !== '0'; $('camAuto').onchange = e => { store('arremessos-cam-auto', e.target.checked ? '1' : '0'); camMeasure(); applyGeo(); render(); saveCur(); };
 $('cam').onchange = e => { $('camAuto').checked = false; store('arremessos-cam-auto', '0'); const v = Math.min(20, Math.max(2, +e.target.value || 7)); e.target.value = v; store('arremessos-cam', v); A.setCam(v); applyGeo(); render(); saveCur(); renderLearn(); };
 // ---------- correção logo abaixo do vídeo ----------
+// correção durante a análise: segue o arremesso mais novo; o que você marcar é refeito depois da decisão final
+let pendFx = [], selPin = false, anaVt = 0;
+const analyzing = () => fast && running && !reviewable;
+function applyPend() {
+  const S = A.shots;
+  for (const p of pendFx) {
+    const near = (tol, manOk) => { let b = -1; S.forEach((x, i) => { if ((manOk || !x.manual) && Math.abs(x.t - p.t) < tol && (b < 0 || Math.abs(x.t - p.t) < Math.abs(S[b].t - p.t))) b = i; }); return b; };
+    if (p.op === 'add') { A.addManual(p.made, p.t); continue; }
+    const i = near(0.05, true) >= 0 ? near(0.05, true) : near(1.2, false); if (i < 0) continue;
+    if (p.op === 'del') A.remove(i); else A.review(i, p.made);
+  }
+  pendFx = [];
+}
 function showFix() {
-  const S = A.shots, bar = $('fixBar');
+  const S = A.shots, bar = $('fixBar'), an = analyzing();
   let nr = null; try { nr = narr; } catch (e) {}
-  bar.hidden = !reviewable || !S.length || !!nr || demo != null;
+  bar.hidden = !(reviewable || an) || !S.length || !!nr || demo != null;
   if (bar.hidden) return;
+  if (an && !selPin) sel = S.length - 1;
   if (sel == null || sel >= S.length) sel = Math.min(sel == null ? 0 : sel, S.length - 1);
   const s = S[sel];
+  for (const id of ['fxAgain', 'fxZoom']) $(id).hidden = an;
+  if (an) {
+    $('fxTxt').innerHTML = `Arremesso <b>${s.n}</b> · ${fmtT(s.t)}${selPin ? '' : ' <small style="color:var(--cyan)">(o mais novo)</small>'}<br><small style="color:var(--mute)">${s.manual ? 'incluído por você' : s.fixed || s.rev ? 'marcado por você' : 'por enquanto: ' + (s.made ? 'cesta' : 'erro')} · corrija já, a análise continua</small>`;
+    $('fxC').classList.toggle('sel', s.made); $('fxE').classList.toggle('sel', !s.made);
+    $('fxPrev').disabled = sel <= 0; $('fxNext').disabled = sel >= S.length - 1;
+    $('fxDel').textContent = delArm2 === sel ? 'Toque de novo p/ apagar' : 'Não foi arremesso';
+    $('fxMv').innerHTML = $('fxArc').innerHTML = ''; $('fxBody').hidden = true; return;
+  }
   $('fxTxt').innerHTML = `Arremesso <b>${s.n}</b> de ${S.length} · ${fmtT(s.t)}<br><small style="color:var(--mute)">${s.manual ? 'incluído por você' : s.fixed ? 'corrigido por você' : s.rev ? 'conferido' : 'o app achou ' + (s.made ? 'cesta' : 'erro')}</small>`;
   $('fxC').classList.toggle('sel', s.made); $('fxE').classList.toggle('sel', !s.made);
   $('fxPrev').disabled = sel <= 0; $('fxNext').disabled = sel >= S.length - 1;
@@ -1429,9 +1451,10 @@ function showMv(s) {
   el.innerHTML = `Tipo: <select id="fxTy" aria-label="Tipo de arremesso"><option value="">${mv.pose ? '–' : 'não sei (sem o corpo)'}</option>${Object.entries(MVT).map(([k, v]) => `<option value="${k}" ${mv.ty === k ? 'selected' : ''}>${v}</option>`).join('')}</select>${mv.u ? ' <span class="fx">corrigido</span>' : ''}${rest ? ' · ' + rest : ''}`;
   $('fxTy').onchange = e => { s.mv = Object.assign({ fl: [] }, s.mv || {}, { ty: e.target.value || null, u: 1 }); render(); saveCur(); };
 }
-function goShot(i, play) { const S = A.shots; if (!S.length) return; sel = Math.max(0, Math.min(S.length - 1, i)); delArm2 = null; render(); if (play) { playClip(S[sel]); status('Arremesso ' + S[sel].n + ': está certo? Toque em Cesta ou Erro', 'on'); } }
+function goShot(i, play) { const S = A.shots; if (!S.length) return; sel = Math.max(0, Math.min(S.length - 1, i)); delArm2 = null; if (analyzing()) { selPin = sel < S.length - 1; render(); return; } render(); if (play) { playClip(S[sel]); status('Arremesso ' + S[sel].n + ': está certo? Toque em Cesta ou Erro', 'on'); } }
 function setRes(made) { // marca e já passa para o próximo
   const S = A.shots; if (sel == null || !S[sel]) return;
+  if (analyzing()) { pendFx.push({ op: 'res', t: S[sel].t, made }); A.review(sel, made); flash(made); selPin = false; render(); return; }
   A.review(sel, made); saveCur(); flash(made);
   if (sel < S.length - 1) goShot(sel + 1, true); else { render(); status('Pronto: todos conferidos até o fim', 'on'); }
 }
@@ -1442,11 +1465,12 @@ $('fxPrev').onclick = () => goShot(sel - 1, true); $('fxNext').onclick = () => g
 $('fxAgain').onclick = () => { const s = A.shots[sel]; if (s) playClip(s); };
 $('fxDel').onclick = () => {
   if (delArm2 !== sel) { delArm2 = sel; showFix(); return; }
-  delArm2 = null; A.remove(sel); if (sel >= A.shots.length) sel = A.shots.length - 1; render(); saveCur(); msg('Lance apagado da contagem.');
+  delArm2 = null; if (analyzing()) pendFx.push({ op: 'del', t: A.shots[sel].t }); A.remove(sel); if (sel >= A.shots.length) sel = A.shots.length - 1; render(); saveCur(); msg('Lance apagado da contagem.');
 };
 $('fxAdd').onclick = () => { // inclui um arremesso no ponto atual do vídeo
   if (!cur) newSession();
-  const i = A.addManual(false, vid.currentTime || 0); sel = i; render(); saveCur(); msg('Arremesso incluído em ' + fmtT(vid.currentTime || 0) + '. Diga se foi Cesta ou Erro.');
+  const tt = analyzing() ? anaVt : (vid.currentTime || 0); if (analyzing()) pendFx.push({ op: 'add', t: tt, made: false });
+  const i = A.addManual(false, tt); sel = i; selPin = true; render(); saveCur(); msg('Arremesso incluído em ' + fmtT(tt) + '. Diga se foi Cesta ou Erro.');
 };
 $('addC').onclick = () => addMan(true); $('addE').onclick = () => addMan(false);
 function addMan(made) {
@@ -3418,7 +3442,9 @@ async function fastAnalyze(file) {
   status('Analisando o vídeo…', 'warn');
   snap = null; snap0 = null;
   const t0w = performance.now(); let nextT = 0, done = 0, lastUI = 0, failed = null, shown = 0;
+  let lastR = 0;
   const prog = vt => {
+    anaVt = vt; if (performance.now() - lastR > 1200 && A.shots.length) { lastR = performance.now(); try { render(); } catch (e) {} }
     const f = Math.min(1, vt / info.dur), el = (performance.now() - t0w) / 1000, left = f > 0.02 ? el * (1 - f) / f : null;
     $('pFill').style.width = (f * 100).toFixed(1) + '%';
     $('pTxt').textContent = `Analisando ${Math.round(f * 100)}% · ${fmtT(vt)} de ${fmtT(info.dur)}` + (left != null ? ` · faltam ~${left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left / 60) + ' min'}` : '');
@@ -3477,7 +3503,7 @@ async function fastAnalyze(file) {
   if (failed && !A.shots.length && done < 5) { running = false; $('prog').hidden = true; keepAwake(false); return false; }
   const stopped = !running;
   running = false; fast = false; reviewable = true; $('bStop').hidden = true;
-  if (!stopped) { try { A.flush(info.dur); A.finalize(); } catch (e) { console.error(e); } } // decide cada arremesso olhando a trajetória completa
+  if (!stopped) { try { A.flush(info.dur); A.finalize(); applyPend(); } catch (e) { console.error(e); } } pendFx = []; // decide cada arremesso olhando a trajetória completa
   if (!stopped && $('somOn').checked) { status('Ouvindo o som do treino…', 'warn'); try { const au = await analyzeAudio(file); if (au) applyAudio(au); else msg('Não consegui ler o som deste vídeo; usei só a imagem.'); } catch (e) {} }
   if (!stopped) for (const fn of [camMeasure, setFeet, setArcs, learnFloor, applyGeo, classifyAll, renderFloor]) { try { fn(); } catch (e) { console.error(e); } }
   prog(stopped ? 0 : info.dur);
