@@ -35,6 +35,7 @@ h2{font:600 22px/1.1 "Barlow Condensed",sans-serif;margin:0 0 10px}
 .flash{position:absolute;inset:0;display:grid;place-items:center;font:800 clamp(40px,10vw,90px) "Barlow Condensed",sans-serif;opacity:0;transition:opacity .3s;pointer-events:none;text-shadow:0 4px 20px #000}
 .flash.show{opacity:1;transition:none}
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.hl{background:#14110d;border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:10px 0}.hl b{color:var(--ball)}#hlVid{width:100%;border-radius:10px;margin-top:8px;background:#000}
 .btn.big{flex:1 1 100%;justify-content:center;min-height:56px;font-size:19px}
 button,.btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 16px Barlow,sans-serif;min-height:44px;padding:0 16px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 button.main,.btn.main{background:var(--ball);border-color:var(--ball);color:#1a0c03}
@@ -196,6 +197,7 @@ tr.cur td{background:#2b2012}
       <div class="prog" id="prog" hidden><div class="pbar"><i id="pFill"></i></div><span id="pTxt"></span></div>
       <div class="note" id="bodyNote" hidden style="margin:6px 2px"></div>
       <div class="msg" id="msg"></div>
+      <div class="hl" id="hlBox" hidden><div id="hlTxt"></div><div class="btns" style="margin:8px 0 0"><button class="main" id="hlMake">🎬 Criar o clipe</button><button id="hlShare" hidden>Compartilhar</button><button id="hlSave" hidden>Salvar</button></div><video id="hlVid" playsinline controls hidden></video></div>
       <div class="btns" id="narrBar" hidden><button class="main" id="bNarr">▶ Assistir com narração</button><select id="nSpd" aria-label="Velocidade"><option value="1">Normal</option><option value="1.5">1,5x</option><option value="2">2x</option></select><button id="bSum">Resumo falado</button></div>
       <div class="diag" id="diag" hidden></div>
       <div class="btns" id="markBar" hidden><button class="main" id="bMark">Marcar o aro (só uma vez)</button><button id="bRedo" hidden>Analisar de novo</button></div>
@@ -382,6 +384,10 @@ tr.cur td{background:#2b2012}
       <div class="card" data-tab="stats">
         <h2>Recordes e estatísticas</h2>
         <div id="recs"><p class="note">Aparece depois do primeiro treino.</p></div>
+      </div>
+      <div class="card" data-tab="stats">
+        <h2>Temporada</h2>
+        <div id="season"><p class="note">Aparece depois do primeiro treino.</p></div>
       </div>
       <div class="card" data-tab="stats">
         <h2>Tipos de arremesso e movimentos</h2>
@@ -1202,7 +1208,7 @@ async function startFile(file) {
   if (vid.readyState >= 2) go(); else vid.onloadeddata = go;
 }
 function prep() {
-  pendFx = []; selPin = false; anaVt = 0; bodyTok++; $('bodyNote').hidden = true;
+  HL = null; $('hlBox').hidden = true; pendFx = []; selPin = false; anaVt = 0; bodyTok++; $('bodyNote').hidden = true;
   demoC.hidden = true; vid.hidden = false; demo = null; fast = false; reviewable = false; $('prog').hidden = true; $('doubtBar').hidden = true; $('revBox').hidden = true; $('diag').hidden = true; rq = null; markMode = false; $('markBar').hidden = true;
   A.relearn(); A.reset(); newSession(); viewSess = null; running = true; startT = performance.now(); foundAt = null; trail = [];
   $('empty').hidden = true; $('chip').hidden = false; $('bStop').hidden = false;
@@ -1323,6 +1329,55 @@ function draw(pw, ph) {
   }
 }
 
+// ---------- melhor arremesso do treino: escolhido sozinho, vira um clipe curto para compartilhar ----------
+const HARD = { stepback: 1.3, fadeaway: 1.3, gancho: 1.1, floater: 1.0, sidestep: 0.9, jumper: 0.4, parado: 0, bandeja: 0 };
+function bestShot() {
+  const L = A.shots.filter(s => s.made && !s.manual); if (!L.length) return null;
+  const sc = s => (s.geo ? s.geo.dist : 3) + (s.mv && s.mv.ty ? HARD[s.mv.ty] || 0 : 0) + (s.mv && (s.mv.fl || []).includes('pull') ? 0.4 : 0) + (s.mv && (s.mv.fl || []).some(f => f === 'cross' || f === 'spin' || f === 'pf') ? 0.4 : 0);
+  return L.reduce((b, s) => sc(s) > sc(b) ? s : b);
+}
+const hlDesc = s => [s.geo ? s.geo.dist.toFixed(1).replace('.', ',') + ' m' : '', s.mv && s.mv.ty ? MVT[s.mv.ty].toLowerCase() : '', s.mv ? (s.mv.fl || []).filter(f => f !== 'sem').map(f => f === 'pull' && s.mv.nd ? `depois de ${s.mv.nd} ${s.mv.nd === 1 ? 'drible' : 'dribles'}` : MVF[f]).join(', ') : ''].filter(Boolean).join(' · ');
+let HL = null;
+function showHL() {
+  const box = $('hlBox'); if (!reviewable || !fileURL || live || !A.shots.length) { box.hidden = true; return; }
+  const s = bestShot(); if (!s) { box.hidden = true; return; }
+  if (!HL || HL.s !== s) { HL = { s, blob: null }; $('hlVid').hidden = true; $('hlShare').hidden = $('hlSave').hidden = true; $('hlMake').hidden = false; $('hlMake').disabled = false; $('hlMake').textContent = '🎬 Criar o clipe'; }
+  const today = new Date(cur && cur.date || Date.now()).toDateString() === new Date().toDateString();
+  $('hlTxt').innerHTML = `🏆 <b>Melhor arremesso ${today ? 'do dia' : 'do treino'}</b><br>Arremesso ${s.n} · ${fmtT(s.t)} · ${hlDesc(s) || 'cesta'}`;
+  box.hidden = false;
+}
+async function makeHL() {
+  const s = HL && HL.s; if (!s || !fileURL) return;
+  if (!('MediaRecorder' in window) || !HTMLCanvasElement.prototype.captureStream) { msg('Este navegador não consegue gravar o clipe.'); return; }
+  const mime = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } });
+  if (!mime) { msg('Este navegador não consegue gravar o clipe.'); return; }
+  const btn = $('hlMake'); btn.disabled = true; btn.textContent = 'Gravando o clipe… (uns 6 s)';
+  const v = document.createElement('video'); v.src = fileURL; v.muted = true; v.playsInline = true;
+  await new Promise(r => { v.onloadedmetadata = r; v.onerror = r; });
+  const vw = v.videoWidth || 1280, vh = v.videoHeight || 720, k = Math.min(1, 1280 / Math.max(vw, vh)), W = Math.round(vw * k / 2) * 2, H = Math.round(vh * k / 2) * 2;
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  const tr = rimT(s), t0 = Math.max(0, s.t - 1.2), t1 = tr + 1.4, txt = hlDesc(s);
+  v.currentTime = t0; await new Promise(r => { v.onseeked = r; setTimeout(r, 4000); });
+  const rec = new MediaRecorder(c.captureStream(30), { mimeType: mime, videoBitsPerSecond: 5e6 }), parts = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) parts.push(e.data); };
+  const done = new Promise(r => { rec.onstop = r; });
+  const draw = () => {
+    x.drawImage(v, 0, 0, W, H);
+    const fs = Math.round(H * 0.045); x.fillStyle = 'rgba(0,0,0,0.55)'; x.fillRect(0, H - fs * 2.6, W, fs * 2.6);
+    x.fillStyle = '#f26b1d'; x.font = `800 ${fs}px sans-serif`; x.fillText('MELHOR ARREMESSO', fs * 0.6, H - fs * 1.45);
+    x.fillStyle = '#fff'; x.font = `600 ${Math.round(fs * 0.8)}px sans-serif`; x.fillText((txt ? txt + ' · ' : '') + 'CESTA', fs * 0.6, H - fs * 0.45);
+  };
+  draw(); rec.start(200); await v.play().catch(() => {});
+  await new Promise(r => { const tick = () => { draw(); if (v.currentTime >= tr - 0.4 && v.playbackRate !== 0.5) v.playbackRate = 0.5; if (v.currentTime >= tr + 0.5 && v.playbackRate !== 1) v.playbackRate = 1; if (v.currentTime >= t1 || v.ended) return r(); requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+  v.pause(); rec.stop(); await done;
+  HL.blob = new Blob(parts, { type: mime.split(';')[0] }); HL.ext = mime.includes('mp4') ? 'mp4' : 'webm';
+  const hv = $('hlVid'); hv.src = URL.createObjectURL(HL.blob); hv.hidden = false;
+  btn.hidden = true; $('hlShare').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([HL.blob], 'a.' + HL.ext, { type: HL.blob.type })] })); $('hlSave').hidden = false;
+}
+$('hlMake').onclick = () => { makeHL().catch(e => { console.error(e); msg('Não consegui gravar o clipe.'); $('hlMake').disabled = false; $('hlMake').textContent = '🎬 Criar o clipe'; }); };
+const hlFile = () => new File([HL.blob], `melhor-arremesso-${new Date().toISOString().slice(0, 10)}.${HL.ext}`, { type: HL.blob.type });
+$('hlShare').onclick = () => { if (HL && HL.blob) navigator.share({ files: [hlFile()], title: 'Melhor arremesso' }).catch(() => {}); };
+$('hlSave').onclick = () => { if (!HL || !HL.blob) return; const a = document.createElement('a'); a.href = URL.createObjectURL(HL.blob); a.download = hlFile().name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000); };
 function flash(made) {
   const f = $('flash'); f.textContent = made ? 'CESTA!' : 'ERROU'; f.style.color = made ? 'var(--ok)' : 'var(--bad)';
   f.classList.add('show'); setTimeout(() => f.classList.remove('show'), 700);
@@ -1441,7 +1496,7 @@ function showFix() {
   $('fxPrev').disabled = sel <= 0; $('fxNext').disabled = sel >= S.length - 1;
   $('fxDel').textContent = delArm2 === sel ? 'Toque de novo p/ apagar' : 'Não foi arremesso';
   showMv(s);
-  showBody(s);
+  showBody(s); try { showHL(); } catch (e) {}
   $('fxArc').innerHTML = s.arc ? `Arco <b>${s.arc.a > 0 ? '+' : ''}${String(s.arc.a.toFixed(1)).replace('.', ',')} m</b> acima do aro${!s.made && s.arc.d ? ` · errou <b>${{ C: 'curto', L: 'longo', A: 'no aro' }[s.arc.d]}</b>` : ''}` : '';
 }
 function showMv(s) {
@@ -1783,7 +1838,7 @@ function renderHist() {
     return `<div class="sess"><div class="d">${esc(fmtD(h.date))}${cur && h.id === cur.id ? ' · atual' : ''}<small>${esc(h.src || '')} · ${+h.c || 0} de ${+h.a || 0}${h.fix ? ' · ' + (+h.fix) + ' corrigido' + (h.fix > 1 ? 's' : '') : ''}</small></div><div class="p">${p}</div><button data-o="${id}">${open ? 'Fechar' : 'Detalhes'}</button><button data-v="${id}">Mapa</button><button data-x="${id}">${delArm === h.id ? 'Confirmar apagar' : 'Apagar treino'}</button>${open ? sessDetail(h) : ''}</div>`; }).join('')
     : '<p class="note">Nenhum treino ' + (per ? 'neste período.' : 'salvo ainda.') + '</p>';
   renderEvo(H);
-  renderRecs(hist); try { renderMvStats(); } catch (e) { console.error(e); } renderGoals(); renderNBA(); bkCheck(); try { renderTec(); } catch (e) { console.error(e); } try { if (document.body.dataset.t === 'conq') renderConq(); if (document.body.dataset.t === 'perfil') renderPerfil(); } catch (e) { console.error(e); }
+  renderRecs(hist); try { renderMvStats(); } catch (e) { console.error(e); } try { renderSeason(); } catch (e) { console.error(e); } renderGoals(); renderNBA(); bkCheck(); try { renderTec(); } catch (e) { console.error(e); } try { if (document.body.dataset.t === 'conq') renderConq(); if (document.body.dataset.t === 'perfil') renderPerfil(); } catch (e) { console.error(e); }
   renderLearn();
 }
 // ---------- metas da semana ----------
@@ -1957,6 +2012,38 @@ function renderComp() {
   if (tips.length) h += '<h3>Dicas</h3><ul style="margin:4px 0 0 18px">' + tips.map(t => `<li>${t}</li>`).join('') + '</ul>';
   h += '<p class="note">*Valores dos jogadores escalados para a sua altura. Os perfis da NBA são aproximados, montados de análises públicas de vídeo e de tempos de soltura divulgados; não são medições oficiais. Comparação só de estilo.</p>';
   $('comp').innerHTML = h;
+}
+// ---------- temporada: cada mês é uma temporada, comparada com a anterior ----------
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+function seasonSum(H) {
+  const S = H.flatMap(h => (h.shots || []).map(unpack)), a = S.length, c = S.filter(x => x.made).length;
+  let best = 0; for (const h of H) { let run = 0; for (const x of (h.shots || []).map(unpack).sort((p, q) => p.t - q.t)) { run = x.made ? run + 1 : 0; best = Math.max(best, run); } }
+  const G = S.filter(x => x.geo), J = S.filter(x => x.body && x.body.j != null), M = S.filter(x => x.made && x.geo);
+  const mvp = H.filter(h => (h.a || 0) >= 15).reduce((b, h) => !b || h.c / h.a > b.c / b.a ? h : b, null);
+  return { a, c, p: a ? c / a : null, best, far: M.length ? Math.max(...M.map(x => x.geo.dist)) : null, dist: G.length ? G.reduce((t, x) => t + x.geo.dist, 0) / G.length : null, jump: J.length ? J.reduce((t, x) => t + x.body.j, 0) / J.length : null, dias: new Set(H.map(h => new Date(h.date).toDateString())).size, mvp, dur: H.reduce((t, h) => t + (h.dur || 0), 0) };
+}
+function renderSeason() {
+  const el = $('season'), byM = {}, mk = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), nm = k => MESES[+k.slice(5) - 1] + ' de ' + k.slice(0, 4);
+  for (const h of hist) { const d = new Date(h.date); if (!isNaN(d)) (byM[mk(d)] = byM[mk(d)] || []).push(h); }
+  if (!hist.length) { el.innerHTML = '<p class="note">Aparece depois do primeiro treino.</p>'; return; }
+  const now = new Date(), ck = mk(now), pk = mk(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  const C = seasonSum(byM[ck] || []), P = byM[pk] ? seasonSum(byM[pk]) : null;
+  const f1 = v => v.toFixed(1).replace('.', ','), hm = sec => sec >= 3600 ? Math.floor(sec / 3600) + ' h ' + Math.round(sec % 3600 / 60) + ' min' : Math.round(sec / 60) + ' min';
+  const dl = (a, b, fmt, inv) => a == null || b == null ? '' : (() => { const d = a - b; if (Math.abs(d) < 1e-9) return ' <small style="color:var(--mute)">=</small>'; const good = inv ? d < 0 : d > 0; return ` <small style="color:${inv === 0 ? 'var(--mute)' : good ? 'var(--ok)' : 'var(--bad)'}">${d > 0 ? '▲' : '▼'} ${fmt(Math.abs(d))}</small>`; })();
+  const tile = (lab, val) => `<div class="lr lr2"><span>${lab}</span><b>${val}</b></div>`;
+  const past = Object.keys(byM).sort().reverse().filter(k => k !== ck).slice(0, 12);
+  el.innerHTML = `<h3 style="margin-top:0">Temporada de ${nm(ck)}</h3>${C.a ? `
+    ${tile('Dias treinados', C.dias + (P ? dl(C.dias, P.dias, v => String(v)) : ''))}
+    ${tile('Arremessos', C.a + (P ? dl(C.a, P.a, v => String(v)) : ''))}
+    ${tile('Aproveitamento', Math.round(100 * C.p) + '%' + (P && P.p != null ? dl(100 * C.p, 100 * P.p, v => Math.round(v) + ' pts') : ''))}
+    ${tile('Maior sequência de cestas', C.best + (P ? dl(C.best, P.best, v => String(v)) : ''))}
+    ${tile('Cesta mais longe', C.far == null ? '–' : f1(C.far) + ' m')}
+    ${tile('Distância média', C.dist == null ? '–' : f1(C.dist) + ' m' + (P && P.dist != null ? dl(C.dist, P.dist, v => f1(v) + ' m', 0) : ''))}
+    ${tile('Salto médio', C.jump == null ? '–' : Math.round(C.jump) + ' cm' + (P && P.jump != null ? dl(C.jump, P.jump, v => Math.round(v) + ' cm') : ''))}
+    ${tile('Tempo treinado', hm(C.dur))}
+    ${C.mvp ? `<p style="margin:8px 0 0">🏆 <b>MVP do mês:</b> o treino de ${fmtD(C.mvp.date)} · ${Math.round(100 * C.mvp.c / C.mvp.a)}% em ${C.mvp.a} arremessos.</p>` : ''}
+    ${P ? `<p class="note">Setas: comparação com ${nm(pk)}.</p>` : '<p class="note">No mês que vem aparece a comparação com esta temporada.</p>'}` : `<p class="note">Nenhum treino neste mês ainda. A temporada começa no primeiro treino.</p>`}
+    ${past.length ? `<h3>Temporadas anteriores</h3><div class="list"><table><thead><tr><th>Mês</th><th class="n">Treinos</th><th class="n">Arr.</th><th class="n">Acerto</th></tr></thead><tbody>${past.map(k => { const S2 = seasonSum(byM[k]); return `<tr><td>${nm(k)}</td><td class="n">${S2.dias}</td><td class="n">${S2.a}</td><td class="n">${S2.p == null ? '–' : Math.round(100 * S2.p) + '%'}</td></tr>`; }).join('')}</tbody></table></div>` : ''}`;
 }
 function renderMvStats() {
   const el = $('mvSt'), L = hist.flatMap(h => (h.shots || []).map(x => ({ ...unpack(x), date: h.date }))).filter(x => x.mv);
