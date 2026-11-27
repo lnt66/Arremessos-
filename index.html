@@ -224,7 +224,7 @@ tr.cur td{background:#2b2012}
         <div id="poseT" hidden><p class="note" id="poseTxt"></p><canvas id="poseC" style="width:100%;height:auto;border-radius:10px;border:1px solid var(--line)"></canvas></div>
         <label class="row"><input type="checkbox" id="somOn"> Analisar também o som (barulho no aro, na tabela, na rede)</label>
         <input type="checkbox" id="narrOn" hidden>
-        <label class="row"><input type="checkbox" id="dbg"> Mostrar o que a IA está vendo (laranja = bola, azul = aro)</label>
+        <label class="row"><input type="checkbox" id="iaView"> Mostrar o que a IA está vendo (laranja = bola, azul = aro)</label>
         <label class="row"><input type="checkbox" id="camAuto" checked> Medir sozinho a distância e a posição da câmera (pelo tamanho do aro na imagem)</label>
         <label class="row">Distância da câmera até a cesta
           <input type="number" id="cam" min="2" max="20" step="0.5" value="7" inputmode="decimal" style="width:5.5em;font:16px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;min-height:40px;padding:0 8px"> m</label>
@@ -1259,7 +1259,7 @@ function draw(pw, ph) {
   if (ov.width !== Math.round(rect.width * dpr)) { ov.width = Math.round(rect.width * dpr); ov.height = Math.round(rect.height * dpr); }
   const W = ov.width, H = ov.height, s = Math.min(W / pw, H / ph), ox = (W - pw * s) / 2, oy = (H - ph * s) / 2;
   octx.clearRect(0, 0, W, H);
-  if ($('dbg').checked) {
+  if ($('iaView').checked) {
     const m = A.masks(), img = dctx.createImageData(pw, ph);
     for (let i = 0; i < m.W * m.H; i++) {
       const k = i * 4;
@@ -1508,7 +1508,7 @@ function showDiag() {
   if (S) {
     demoC.width = S.img.width; demoC.height = S.img.height; demoX.putImageData(S.img, 0, 0);
     demoC.hidden = false; vid.hidden = true; lastBall = snap ? snap.ball : null; trail = [];
-    const was = $('dbg').checked; $('dbg').checked = false; draw(S.img.width, S.img.height); $('dbg').checked = was;
+    const was = $('iaView').checked; $('iaView').checked = false; draw(S.img.width, S.img.height); $('iaView').checked = was;
   }
 }
 function showDoubt() { $('doubtBar').hidden = true; return; // sem conferência: a decisão do app é final
