@@ -125,7 +125,7 @@ tr.cur td{background:#2b2012}
 .hb{display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}.hb button{min-height:34px;padding:0 10px;font-size:14px}.hb button.sel{background:var(--cyan);color:#041417;border-color:var(--cyan)}
 .tabs{position:sticky;top:0;z-index:20;display:flex;gap:4px;overflow-x:auto;background:var(--bg);padding:6px 0 8px;margin:0 0 10px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
 .tabs button{flex:0 0 auto;min-height:44px;padding:0 6px;font:700 13.5px Barlow,sans-serif;border-radius:22px;white-space:nowrap}.tabs button.on{background:var(--ball);border-color:var(--ball);color:#1a0c03}
-[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"],body[data-t="comp"] [data-tab~="comp"],body[data-t="trein"] [data-tab~="trein"]{display:block}
+[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"],body[data-t="comp"] [data-tab~="comp"],body[data-t="trein"] [data-tab~="trein"],body[data-t="tec"] [data-tab~="tec"]{display:block}
 .side{display:grid;gap:16px;align-content:start}body:not([data-t="treino"]) .grid{grid-template-columns:minmax(0,1fr)}
 .big.live{flex:1 1 100%;justify-content:center;min-height:52px;font-size:18px;color:#ff6b6b;border-color:#ff6b6b}.big.live.on{background:#ff4d4d;color:#fff;border-color:#ff4d4d}
 #calC{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);touch-action:manipulation;background:#000}.calstep{font:700 16px/1.35 Barlow,sans-serif;color:var(--cyan);margin:8px 0}
@@ -148,13 +148,16 @@ tr.cur td{background:#2b2012}
 .progs{display:grid;gap:8px;margin:8px 0}.prog2{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px}.prog2 b{font:800 20px "Barlow Condensed",sans-serif}.prog2 small{display:block;color:var(--mute);font-size:13px;line-height:1.35}.prog2 .rec{color:var(--cyan);font-weight:600}.prog2 button{min-height:48px;background:var(--ball);color:#1a0c03;border-color:var(--ball);font-weight:800}
 .pgrow{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}.pgrow select{min-height:42px;font:15px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px}
 .hudprog{position:absolute;left:10px;top:74px;max-width:min(60%,420px);background:rgba(0,0,0,.7);border:1px solid #3fd0e0;border-radius:12px;padding:8px 12px;font:700 clamp(15px,2.6vw,22px)/1.3 Barlow,sans-serif;color:#fff;pointer-events:none}.hudprog small{display:block;font-weight:600;color:#bbb;font-size:.72em}.hudprog .big2{font:800 clamp(22px,4vw,40px)/1 "Barlow Condensed",sans-serif;color:#ffb347}
+.gauge{display:flex;align-items:center;gap:14px}.gauge .num{font:800 64px/1 "Barlow Condensed",sans-serif;color:var(--cyan);flex:0 0 auto}.gauge .lbl{font:700 18px Barlow,sans-serif}.gauge small{color:var(--mute)}
+.figs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}.figs div{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center}.figs svg{width:100%;max-width:150px;height:auto}
+.spk{display:grid;grid-template-columns:7.5em 1fr 4.5em;gap:8px;align-items:center;margin:6px 0;font-size:14px}.spk svg{width:100%;height:34px}.spk b{text-align:right;font:800 18px "Barlow Condensed",sans-serif}
 @media(prefers-reduced-motion:reduce){.flash{transition:none}}
 </style>
 </head>
 <body data-t="treino">
 <div class="wrap">
   <h1>Contador de <span>Arremessos</span></h1>
-  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="trein">Treinos</button><button data-t="comp">NBA</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
+  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="trein">Treinos</button><button data-t="tec">Técnica</button><button data-t="comp">NBA</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
   <div class="grid">
     <section data-tab="treino">
       <div class="stage" id="stage">
@@ -256,6 +259,22 @@ tr.cur td{background:#2b2012}
         <p class="note" style="margin-top:0">Salva um arquivo com todos os treinos e tudo que o app aprendeu da sua quadra. Use para trocar de celular ou passar para a versão nova.</p>
         <div class="btns"><button id="bExp">Salvar cópia</button><label class="btn" for="fImp">Restaurar cópia</label><input type="file" id="fImp" accept=".json,application/json" hidden></div>
         <div class="btns"><button class="danger" id="bWipe">Apagar todo o histórico</button></div>
+      </div>
+      <div class="card" data-tab="tec">
+        <h2>Consistência do arremesso</h2>
+        <div id="tcCons"><p class="note">Aparece depois de alguns arremessos analisados com o reconhecimento do corpo ligado (Ajustes).</p></div>
+      </div>
+      <div class="card" data-tab="tec">
+        <h2>Cesta × erro</h2>
+        <div id="tcCmp"></div>
+      </div>
+      <div class="card" data-tab="tec">
+        <h2>Evolução da mecânica</h2>
+        <div id="tcEvo"></div>
+      </div>
+      <div class="card" data-tab="tec">
+        <h2>Dicas para você</h2>
+        <div id="tcTips"></div>
       </div>
       <div class="card" data-tab="trein">
         <h2>Treinos guiados ao vivo</h2>
@@ -1607,7 +1626,7 @@ function renderHist() {
     return `<div class="sess"><div class="d">${esc(fmtD(h.date))}${cur && h.id === cur.id ? ' · atual' : ''}<small>${esc(h.src || '')} · ${+h.c || 0} de ${+h.a || 0}${h.fix ? ' · ' + (+h.fix) + ' corrigido' + (h.fix > 1 ? 's' : '') : ''}</small></div><div class="p">${p}</div><button data-o="${id}">${open ? 'Fechar' : 'Detalhes'}</button><button data-v="${id}">Mapa</button><button data-x="${id}">${delArm === h.id ? 'Confirmar apagar' : 'Apagar treino'}</button>${open ? sessDetail(h) : ''}</div>`; }).join('')
     : '<p class="note">Nenhum treino ' + (per ? 'neste período.' : 'salvo ainda.') + '</p>';
   renderEvo(H);
-  renderRecs(hist); renderGoals(); renderNBA(); bkCheck();
+  renderRecs(hist); renderGoals(); renderNBA(); bkCheck(); try { renderTec(); } catch (e) { console.error(e); }
   renderLearn();
 }
 // ---------- metas da semana ----------
@@ -2080,7 +2099,7 @@ async function keepAwake(on) { try { if (on) { if (!wakeA) { wakeA = await navig
 document.addEventListener('visibilitychange', () => { if (!document.hidden && fast) keepAwake(true); });
 try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} // app instalável e sem internet
 // ---------- abas ----------
-for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); if (b.dataset.t === 'comp') renderNBA(); };
+for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); if (b.dataset.t === 'comp') renderNBA(); if (b.dataset.t === 'tec') renderTec(); };
 // ---------- quadra aprendida sozinha: chão pelo seu tamanho na imagem (você tem 1,81 m) ----------
 let FLOOR = { obs: [], fit: null }; try { const f0 = JSON.parse(store('arremessos-chao') || 'null'); if (f0 && f0.obs) FLOOR = f0; } catch (e) {}
 function fitFloor() { // altura do corpo na imagem = a·(y dos pés − horizonte)
@@ -2361,6 +2380,77 @@ function liveStop() {
   if (wasProg) { cur.src = 'Treino: ' + wasProg.p.name; saveCur(); renderProgs(); }
 }
 $('bLive').onclick = () => { if (live) liveStop(); else liveStart(); };
+// ---------- técnica: consistência, cesta × erro, evolução e dicas ----------
+const TM = [ // métricas do arremesso: nome, leitura, escala (variação "normal"), formato
+  { k: 'tp', n: 'Tempo de soltura', g: x => x.body && x.body.tp, sc: 0.15, f: v => v.toFixed(2).replace('.', ',') + ' s', low: true },
+  { k: 'r', n: 'Altura da soltura', g: x => x.body && x.body.r, sc: 0.12, f: v => v.toFixed(2).replace('.', ',') + ' m' },
+  { k: 'j', n: 'Salto', g: x => x.body && x.body.j, sc: 6, f: v => Math.round(v) + ' cm' },
+  { k: 'e', n: 'Cotovelo na soltura', g: x => x.body && x.body.e, sc: 10, f: v => Math.round(v) + '°' },
+  { k: 'k', n: 'Joelho dobrado', g: x => x.body && x.body.k, sc: 12, f: v => Math.round(v) + '°' },
+  { k: 'a', n: 'Arco acima do aro', g: x => x.arc && x.arc.a, sc: 0.45, f: v => (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + ' m' }
+];
+const mean = a => a.reduce((t, v) => t + v, 0) / a.length, sd = a => { if (a.length < 2) return 0; const m = mean(a); return Math.sqrt(a.reduce((t, v) => t + (v - m) ** 2, 0) / (a.length - 1)); };
+function consistency(L) { // 100 = arremesso sempre igual
+  const z = []; for (const m of TM) { const v = L.map(m.g).filter(x => x != null && isFinite(x)); if (v.length >= 5) z.push(sd(v) / m.sc); }
+  if (!z.length) return null; const az = mean(z); return Math.round(100 / (1 + az * az));
+}
+function figSvg(lm, h, col) {
+  if (!lm) return '<p class="note">sem esqueleto</p>';
+  const p = i => { const k = FIG.indexOf(i); return [8 + lm[k][0] * 84, 6 + lm[k][1] * 150]; }, seg = (a, b, c) => { const A1 = p(a), B1 = p(b); return `<line x1="${A1[0]}" y1="${A1[1]}" x2="${B1[0]}" y2="${B1[1]}" stroke="${c}" stroke-width="4" stroke-linecap="round"/>`; };
+  const cR = h === 'E' ? '#8a7a6a' : col, cL = h === 'E' ? col : '#8a7a6a', hd = p(0);
+  return `<svg viewBox="0 0 100 165">${seg(11, 12, '#ddd') + seg(23, 24, '#ddd') + seg(11, 23, '#ddd') + seg(12, 24, '#ddd') + seg(23, 25, '#9aa') + seg(25, 27, '#9aa') + seg(24, 26, '#9aa') + seg(26, 28, '#9aa') + seg(11, 13, cL) + seg(13, 15, cL) + seg(12, 14, cR) + seg(14, 16, cR)}<circle cx="${hd[0]}" cy="${hd[1]}" r="7" fill="#ddd"/></svg>`;
+}
+function typical(L) { // o arremesso mais "típico" do grupo (mais perto da mediana em tudo)
+  const med = {}; for (const m of TM) med[m.k] = medN(L.map(m.g));
+  let best = null, bd = 1e9; for (const x of L) { if (!x.body || !x.body.lm) continue; let d = 0; for (const m of TM) { const v = m.g(x); if (v != null && med[m.k] != null) d += ((v - med[m.k]) / m.sc) ** 2; } if (d < bd) { bd = d; best = x; } }
+  return best;
+}
+function renderTec() {
+  const all = hist.slice().sort((a, b) => a.date < b.date ? -1 : 1).flatMap(h => (h.shots || []).map(x => ({ ...unpack(x), date: h.date }))).filter(x => x.body);
+  if (all.length < 8) { $('tcCons').innerHTML = `<p class="note">Preciso de pelo menos 8 arremessos analisados com o reconhecimento do corpo (agora: ${all.length}). Envie um vídeo de treino com "Analisar o corpo" ligado em Ajustes.</p>`; $('tcCmp').innerHTML = $('tcEvo').innerHTML = $('tcTips').innerHTML = ''; return; }
+  // ---- consistência
+  const R = all.slice(-50), cs = consistency(R), csP = all.length >= 100 ? consistency(all.slice(-100, -50)) : null;
+  const lab = cs == null ? '' : cs >= 80 ? 'muito consistente' : cs >= 65 ? 'consistente' : cs >= 50 ? 'oscila um pouco' : 'oscila bastante';
+  const parts = TM.map(m => { const v = R.map(m.g).filter(x => x != null && isFinite(x)); return v.length >= 5 ? { m, z: sd(v) / m.sc, s: sd(v) } : null; }).filter(Boolean).sort((a, b) => b.z - a.z);
+  $('tcCons').innerHTML = `<div class="gauge"><span class="num">${cs ?? '–'}</span><div><span class="lbl">${lab}</span><br><small>Nota de 0 a 100 dos seus últimos ${R.length} arremessos: quanto o movimento se repete igual.${csP != null ? ` Antes: ${csP} (${cs - csP >= 0 ? '+' : ''}${cs - csP}).` : ''}</small></div></div>
+    <h3>O que mais varia</h3><div class="scroll"><table class="wk rt"><tbody>${parts.map(q => `<tr><td>${q.m.n}</td><td><b>± ${q.m.f(q.s).replace('+', '')}</b></td><td><small>${q.z > 1.2 ? 'varia muito' : q.z > 0.7 ? 'varia' : 'estável'}</small></td></tr>`).join('')}</tbody></table></div>`;
+  // ---- cesta × erro
+  const M = all.filter(x => x.made), E = all.filter(x => !x.made);
+  if (M.length >= 4 && E.length >= 4) {
+    const tm = typical(M), te = typical(E);
+    const rows = TM.map(m => { const a = M.map(m.g).filter(v => v != null), b = E.map(m.g).filter(v => v != null); if (a.length < 3 || b.length < 3) return null; const ma = mean(a), mb = mean(b), pool = Math.sqrt((sd(a) ** 2 + sd(b) ** 2) / 2) || m.sc, eff = (ma - mb) / pool; return { m, ma, mb, eff }; }).filter(Boolean);
+    const big = rows.slice().sort((a, b) => Math.abs(b.eff) - Math.abs(a.eff));
+    $('tcCmp').innerHTML = `<div class="figs"><div><b style="color:var(--ok)">Cesta típica</b>${figSvg(tm && tm.body.lm, tm && tm.body.h, '#4cd57a')}</div><div><b style="color:var(--bad)">Erro típico</b>${figSvg(te && te.body.lm, te && te.body.h, '#ff5a5a')}</div></div>
+      <div class="scroll"><table class="wk rt"><thead><tr><th></th><th style="text-align:right;color:var(--ok)">Cestas</th><th style="text-align:right;color:var(--bad)">Erros</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.m.n}${Math.abs(r.eff) >= 0.4 ? ' <small style="color:var(--cyan)">● faz diferença</small>' : ''}</td><td><b>${r.m.f(r.ma)}</b></td><td><b style="color:var(--mute)">${r.m.f(r.mb)}</b></td></tr>`).join('')}</tbody></table></div>
+      <p class="note">Baseado em ${M.length} cestas e ${E.length} erros. "Faz diferença" = a diferença entre cesta e erro é grande perto do quanto aquilo varia.</p>`;
+    PROG_TIPS = big.filter(r => Math.abs(r.eff) >= 0.4).slice(0, 3);
+  } else { $('tcCmp').innerHTML = '<p class="note">Preciso de pelo menos 4 cestas e 4 erros com o corpo analisado.</p>'; PROG_TIPS = []; }
+  // ---- evolução por semana
+  const wk = {}; for (const x of all) { const k = weekStart(x.date).getTime(); (wk[k] = wk[k] || []).push(x); }
+  const ks = Object.keys(wk).map(Number).sort((a, b) => a - b).slice(-10);
+  if (ks.length >= 2) {
+    const series = TM.map(m => ({ m, v: ks.map(k => medN(wk[k].map(m.g))) })).concat([{ m: { n: 'Consistência', f: v => Math.round(v) + '' }, v: ks.map(k => wk[k].length >= 8 ? consistency(wk[k]) : null) }]);
+    $('tcEvo').innerHTML = series.map(S2 => { const v = S2.v.filter(x => x != null); if (v.length < 2) return ''; const lo = Math.min(...v), hi = Math.max(...v), rg = hi - lo || 1; const pts = S2.v.map((x, i) => x == null ? null : [4 + i * 92 / (ks.length - 1), 30 - (x - lo) / rg * 24]).filter(Boolean); const last = v[v.length - 1], first = v[0];
+      return `<div class="spk"><span>${S2.m.n}</span><svg viewBox="0 0 100 34" preserveAspectRatio="none"><polyline fill="none" stroke="#3fd0e0" stroke-width="1.6" points="${pts.map(p => p.join(',')).join(' ')}"/>${pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="1.6" fill="#3fd0e0"/>`).join('')}</svg><b>${S2.m.f(last)}<br><small style="font:600 11px Barlow,sans-serif;color:var(--mute)">antes ${S2.m.f(first)}</small></b></div>`; }).join('') + `<p class="note">Semana a semana (valor típico de cada semana), das ${ks.length} últimas semanas com treino.</p>`;
+  } else $('tcEvo').innerHTML = '<p class="note">Aparece quando houver treinos em pelo menos 2 semanas.</p>';
+  // ---- dicas
+  const tips = [];
+  for (const r of PROG_TIPS) {
+    const up = r.ma > r.mb, d = Math.abs(r.ma - r.mb);
+    const txt = { tp: up ? `Nas cestas você leva ${r.m.f(d)} a mais para soltar: não apresse o arremesso.` : `Nas cestas você solta ${r.m.f(d)} mais rápido: confie no movimento, sem segurar a bola.`,
+      r: up ? `Nas cestas você solta ${r.m.f(d)} mais alto: suba bem o braço até o fim.` : `Nas cestas a soltura é ${r.m.f(d)} mais baixa: não force subir demais.`,
+      j: up ? `Nas cestas você salta ${r.m.f(d)} a mais: use as pernas em todo arremesso.` : `Nas cestas você salta ${r.m.f(d)} a menos: salto controlado funciona melhor para você.`,
+      e: up ? `Nas cestas o braço termina ${r.m.f(d)} mais esticado: estique o cotovelo até o fim.` : `Nas cestas o cotovelo fica ${r.m.f(d)} mais dobrado ao soltar.`,
+      k: up ? `Nos erros você dobra mais o joelho (${r.m.f(d)} de diferença): não afunde demais.` : `Nas cestas você dobra mais o joelho (${r.m.f(d)}): carregue as pernas antes de subir.`,
+      a: up ? `Nas cestas o arco é ${r.m.f(d).replace('+', '')} mais alto: arremesse com mais arco.` : `Nas cestas o arco é ${r.m.f(d).replace('+', '')} mais baixo: arco muito alto está te atrapalhando.` }[r.m.k];
+    if (txt) tips.push(txt);
+  }
+  if (parts.length && parts[0].z > 1) tips.push(`O que mais muda de um arremesso para outro é <b>${parts[0].m.n.toLowerCase()}</b>: treine repetindo sempre igual (por exemplo, a série de lances livres).`);
+  const MM = myMech(); if (MM && MM.tp > 0.8) tips.push('Seu tempo de soltura está lento para jogo: treine o "1 minuto" na aba Treinos para ganhar ritmo.');
+  if (MM && MM.e != null && MM.e < 150) tips.push('Você solta com o braço ainda dobrado: termine o arremesso com o cotovelo esticado e o punho caído.');
+  $('tcTips').innerHTML = tips.length ? '<ul style="margin:4px 0 0 18px">' + tips.map(t => `<li style="margin:6px 0">${t}</li>`).join('') + '</ul>' : '<p class="note">Ainda sem dicas: preciso de mais cestas e erros analisados para ver o que faz diferença.</p>';
+}
+let PROG_TIPS = [];
 // ---------- treinos guiados ao vivo ----------
 const SIDES = ['esquerda', 'frente', 'direita'], SIDE_AT = ['na esquerda', 'de frente', 'na direita'], SIDE_TO = ['para a esquerda', 'para a frente da cesta', 'para a direita'], SIDE_UI = ['Esquerda', 'De frente', 'Direita'];
 const DIST = { p: [0.8, 3, 'a 2 metros', 'Perto (2 m)'], m: [3, 5, 'a 4 metros', 'Média (4 m)'], l: [4.8, 8, 'a 6 metros', 'Longe (6 m)'], b: [0, 1.6, 'bandeja', 'Bandeja'], ll: [3.8, 5.4, 'na linha do lance livre', 'Lance livre (4,6 m)'] };
