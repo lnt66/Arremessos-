@@ -2690,18 +2690,33 @@ function renderPgRes() {
 }
 renderProgs(); renderBuild();
 // ---------- corpo: reconhece seu esqueleto no momento do arremesso (MediaPipe) ----------
-const MPV = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-let POSE = null, poseTs = 0;
+// tenta várias fontes da biblioteca e do modelo (se uma falhar, usa a próxima) e guarda o motivo de cada falha
+const MP_LIBS = [['https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs', 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'],
+  ['https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs', 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm'],
+  ['https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs', 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'],
+  ['https://unpkg.com/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs', 'https://unpkg.com/@mediapipe/tasks-vision@0.10.14/wasm']];
+const MP_MODELS = ['https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task',
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'];
+let POSE = null, poseTs = 0, POSE_LOG = [], POSE_SRC = '';
 async function loadPose() {
   if (POSE) return POSE;
   if (window.__fakePose) return POSE = window.__fakePose; // só para testes
-  try {
-    const mp = await import(MPV + '/vision_bundle.mjs');
-    const fs = await mp.FilesetResolver.forVisionTasks(MPV + '/wasm');
-    const mk = d => mp.PoseLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task', delegate: d }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35 });
-    try { POSE = await mk('GPU'); } catch (e) { POSE = await mk('CPU'); }
-  } catch (e) { POSE = null; }
-  return POSE;
+  POSE_LOG = [];
+  const short = e => String((e && (e.message || e)) || e).slice(0, 140);
+  for (const [lib, wasm] of MP_LIBS) {
+    let mp, fs;
+    try { mp = await import(lib); } catch (e) { POSE_LOG.push('biblioteca ' + lib.replace('https://', '') + ': ' + short(e)); continue; }
+    try { fs = await mp.FilesetResolver.forVisionTasks(wasm); } catch (e) { POSE_LOG.push('wasm: ' + short(e)); continue; }
+    for (const model of MP_MODELS) for (const d of ['GPU', 'CPU']) {
+      try {
+        POSE = await Promise.race([mp.PoseLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: model, delegate: d }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35 }), sleep(25000).then(() => { throw new Error('demorou mais de 25 s'); })]);
+        POSE_SRC = `${lib.split('/').slice(-2, -1)[0]} · ${model.includes('lite') ? 'modelo leve' : 'modelo completo'} · ${d === 'GPU' ? 'placa de vídeo' : 'processador'}`;
+        return POSE;
+      } catch (e) { POSE_LOG.push(`modelo ${model.includes('lite') ? 'leve' : 'completo'} (${d}): ${short(e)}`); }
+    }
+  }
+  POSE = null; return null;
 }
 const handTxt = s => s.body && s.body.h ? (s.body.h === 'D' ? 'Dir.' : 'Esq.') + (s.body.hf ? '' : '') : '–';
 const ang = (a, b, c) => { const v1x = a.x - b.x, v1y = a.y - b.y, v2x = c.x - b.x, v2y = c.y - b.y; const d = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y); return d ? Math.acos(Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / d))) * 180 / Math.PI : null; };
@@ -2755,7 +2770,7 @@ function showBody(s) {
 async function bodyPass(file, info, cfg) {
   const L2 = A.shots.filter(s => !s.manual && s.t > 0.5); if (!L2.length) return 0;
   status('Carregando o reconhecimento do corpo…', 'warn');
-  const P = await Promise.race([loadPose(), sleep(30000).then(() => null)]); if (!P) return -1;
+  const P = await Promise.race([loadPose(), sleep(150000).then(() => null)]); if (!P) return -1;
   const S = info.samples, ts = info.ts, cts0 = Math.min(...S.slice(0, 64).map(x => x.cts)), tm = x => (x.cts - cts0) / ts;
   const dw0 = info.rot % 180 ? info.h : info.w, dh0 = info.rot % 180 ? info.w : info.h, kf = Math.min(1, 1280 / dw0), FW = Math.round(dw0 * kf), FH = Math.round(dh0 * kf);
   const fc = document.createElement('canvas'); fc.width = FW; fc.height = FH; const fx = fc.getContext('2d', { willReadFrequently: false });
@@ -2810,7 +2825,7 @@ $('bPoseT').onclick = async () => {
   if (!fileURL || !A.shots.length) { T('Envie um vídeo de treino primeiro (aba Treino). O teste usa um arremesso desse vídeo.'); return; }
   T('Carregando o modelo do corpo… (na primeira vez baixa uns 10 MB)');
   const t0 = performance.now(), P = await loadPose();
-  if (!P) { T('<b style="color:var(--bad)">✗ Não carregou.</b> Precisa de internet e de abrir o app pelo endereço do GitHub (lnt66.github.io/Arremessos-).'); return; }
+  if (!P) { T('<b style="color:var(--bad)">✗ Não carregou.</b> Mande um print desta tela. Motivos:<br><small style="font-family:monospace">' + POSE_LOG.map(esc).join('<br>') + '</small>'); return; }
   const tl = Math.round(performance.now() - t0), shotsB = A.shots.filter(x => !x.manual), s = shotsB[Math.floor(shotsB.length / 2)] || A.shots[0];
   const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.src = fileURL;
   await new Promise(r => { v.onloadeddata = r; v.onerror = r; setTimeout(r, 6000); });
@@ -2829,7 +2844,7 @@ $('bPoseT').onclick = async () => {
   for (const [a, bb, col] of [[11, 12, '#fff'], [23, 24, '#fff'], [11, 23, '#fff'], [12, 24, '#fff'], [11, 13, '#f26b1d'], [13, 15, '#f26b1d'], [12, 14, '#f26b1d'], [14, 16, '#f26b1d'], [23, 25, '#3fd0e0'], [25, 27, '#3fd0e0'], [24, 26, '#3fd0e0'], [26, 28, '#3fd0e0']]) { const p = Pt(a), q = Pt(bb); x.strokeStyle = col; x.beginPath(); x.moveTo(p[0], p[1]); x.lineTo(q[0], q[1]); x.stroke(); }
   x.strokeStyle = '#3fd0e0'; x.setLineDash([6, 4]); x.strokeRect(cr[0], cr[1], cr[2], cr[3]); x.setLineDash([]);
   const vis = Math.round(100 * [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28].reduce((t, i) => t + (lm[i].visibility == null ? 1 : lm[i].visibility), 0) / 13);
-  T(`<b style="color:var(--ok)">✓ Funcionando.</b> Modelo carregou em ${tl} ms; cada quadro leva ${dt} ms. Esqueleto no arremesso de ${fmtT(s.t)} (confiança média ${vis}%).${s.body ? ` Medido neste arremesso: mão ${s.body.h === 'E' ? 'esquerda' : s.body.h === 'D' ? 'direita' : '?'}, salto ${s.body.j} cm, cotovelo ${s.body.e}°.` : ''} Confira se as linhas estão em cima do seu corpo.`);
+  T(`<b style="color:var(--ok)">✓ Funcionando</b> (${esc(POSE_SRC)}). Modelo carregou em ${tl} ms; cada quadro leva ${dt} ms. Esqueleto no arremesso de ${fmtT(s.t)} (confiança média ${vis}%).${s.body ? ` Medido neste arremesso: mão ${s.body.h === 'E' ? 'esquerda' : s.body.h === 'D' ? 'direita' : '?'}, salto ${s.body.j} cm, cotovelo ${s.body.e}°.` : ''} Confira se as linhas estão em cima do seu corpo.`);
   c.scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 // ---------- som do treino (opcional) ----------
