@@ -125,7 +125,7 @@ tr.cur td{background:#2b2012}
 .hb{display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}.hb button{min-height:34px;padding:0 10px;font-size:14px}.hb button.sel{background:var(--cyan);color:#041417;border-color:var(--cyan)}
 .tabs{position:sticky;top:0;z-index:20;display:flex;gap:4px;overflow-x:auto;background:var(--bg);padding:6px 0 8px;margin:0 0 10px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
 .tabs button{flex:0 0 auto;min-height:44px;padding:0 6px;font:700 13.5px Barlow,sans-serif;border-radius:22px;white-space:nowrap}.tabs button.on{background:var(--ball);border-color:var(--ball);color:#1a0c03}
-[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"],body[data-t="comp"] [data-tab~="comp"],body[data-t="trein"] [data-tab~="trein"],body[data-t="tec"] [data-tab~="tec"]{display:block}
+[data-tab]{display:none}body[data-t="treino"] [data-tab~="treino"],body[data-t="stats"] [data-tab~="stats"],body[data-t="hist"] [data-tab~="hist"],body[data-t="quadra"] [data-tab~="quadra"],body[data-t="ajustes"] [data-tab~="ajustes"],body[data-t="comp"] [data-tab~="comp"],body[data-t="trein"] [data-tab~="trein"],body[data-t="tec"] [data-tab~="tec"],body[data-t="conq"] [data-tab~="conq"]{display:block}
 .side{display:grid;gap:16px;align-content:start}body:not([data-t="treino"]) .grid{grid-template-columns:minmax(0,1fr)}
 .big.live{flex:1 1 100%;justify-content:center;min-height:52px;font-size:18px;color:#ff6b6b;border-color:#ff6b6b}.big.live.on{background:#ff4d4d;color:#fff;border-color:#ff4d4d}
 #calC{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);touch-action:manipulation;background:#000}.calstep{font:700 16px/1.35 Barlow,sans-serif;color:var(--cyan);margin:8px 0}
@@ -151,13 +151,19 @@ tr.cur td{background:#2b2012}
 .gauge{display:flex;align-items:center;gap:14px}.gauge .num{font:800 64px/1 "Barlow Condensed",sans-serif;color:var(--cyan);flex:0 0 auto}.gauge .lbl{font:700 18px Barlow,sans-serif}.gauge small{color:var(--mute)}
 .figs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}.figs div{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center}.figs svg{width:100%;max-width:150px;height:auto}
 .spk{display:grid;grid-template-columns:7.5em 1fr 4.5em;gap:8px;align-items:center;margin:6px 0;font-size:14px}.spk svg{width:100%;height:34px}.spk b{text-align:right;font:800 18px "Barlow Condensed",sans-serif}
+.lr.lr2{grid-template-columns:minmax(0,1fr) auto}
+.lvl{display:flex;gap:14px;align-items:center}.lvl .badge{flex:0 0 76px;height:76px;border-radius:50%;display:grid;place-items:center;font:800 34px/1 "Barlow Condensed",sans-serif;color:#1a0c03;background:radial-gradient(circle at 35% 30%,#ffd28a,#f26b1d 60%,#a8420c)}.lvl b{font:800 26px "Barlow Condensed",sans-serif}
+.medals{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}.md{background:#0b0907;border:1px solid var(--line);border-radius:12px;padding:10px;position:relative}.md.lock{opacity:.55}.md .ic{font-size:26px;line-height:1}.md b{display:block;font:700 15px/1.2 Barlow,sans-serif;margin-top:4px}.md small{display:block;color:var(--mute);font-size:12px;line-height:1.3;margin-top:2px}
+.md .tier{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%}.t0{background:#6b5a4a}.t1{background:#c07a3a}.t2{background:#c9ced6}.t3{background:#f2c14e}.t4{background:#7fe3f0}
+.md .pb{height:6px;background:#2a1f15;border-radius:3px;overflow:hidden;margin-top:6px}.md .pb i{display:block;height:100%;background:var(--ball)}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:200;background:#1b1510;border:2px solid #f2c14e;border-radius:14px;padding:10px 16px;font:700 16px Barlow,sans-serif;box-shadow:0 8px 30px #000a;max-width:92vw;text-align:center}
 @media(prefers-reduced-motion:reduce){.flash{transition:none}}
 </style>
 </head>
 <body data-t="treino">
 <div class="wrap">
   <h1>Contador de <span>Arremessos</span></h1>
-  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="trein">Treinos</button><button data-t="tec">Técnica</button><button data-t="comp">NBA</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
+  <nav class="tabs" id="tabs" aria-label="Seções"><button data-t="treino" class="on">Treino</button><button data-t="stats">Estatísticas</button><button data-t="hist">Histórico</button><button data-t="trein">Treinos</button><button data-t="tec">Técnica</button><button data-t="conq">Conquistas</button><button data-t="comp">NBA</button><button data-t="quadra">Quadra</button><button data-t="ajustes">Ajustes</button></nav>
   <div class="grid">
     <section data-tab="treino">
       <div class="stage" id="stage">
@@ -259,6 +265,27 @@ tr.cur td{background:#2b2012}
         <p class="note" style="margin-top:0">Salva um arquivo com todos os treinos e tudo que o app aprendeu da sua quadra. Use para trocar de celular ou passar para a versão nova.</p>
         <div class="btns"><button id="bExp">Salvar cópia</button><label class="btn" for="fImp">Restaurar cópia</label><input type="file" id="fImp" accept=".json,application/json" hidden></div>
         <div class="btns"><button class="danger" id="bWipe">Apagar todo o histórico</button></div>
+      </div>
+      <div class="card" data-tab="conq">
+        <h2>Seu nível</h2>
+        <div id="cqLvl"></div>
+      </div>
+      <div class="card" data-tab="conq">
+        <h2>Desafios do mês</h2>
+        <div id="cqMon"></div>
+      </div>
+      <div class="card" data-tab="conq">
+        <h2>Quase lá</h2>
+        <div id="cqNext"></div>
+      </div>
+      <div class="card" data-tab="conq">
+        <h2>Medalhas</h2>
+        <div class="chips" id="cqF"><button data-f="all" class="on">Todas</button><button data-f="got">Conquistadas</button><button data-f="todo">Faltam</button></div>
+        <div id="cqAll"></div>
+      </div>
+      <div class="card" data-tab="conq">
+        <h2>Linha do tempo</h2>
+        <div id="cqTime"></div>
       </div>
       <div class="card" data-tab="tec">
         <h2>Consistência do arremesso</h2>
@@ -1626,7 +1653,7 @@ function renderHist() {
     return `<div class="sess"><div class="d">${esc(fmtD(h.date))}${cur && h.id === cur.id ? ' · atual' : ''}<small>${esc(h.src || '')} · ${+h.c || 0} de ${+h.a || 0}${h.fix ? ' · ' + (+h.fix) + ' corrigido' + (h.fix > 1 ? 's' : '') : ''}</small></div><div class="p">${p}</div><button data-o="${id}">${open ? 'Fechar' : 'Detalhes'}</button><button data-v="${id}">Mapa</button><button data-x="${id}">${delArm === h.id ? 'Confirmar apagar' : 'Apagar treino'}</button>${open ? sessDetail(h) : ''}</div>`; }).join('')
     : '<p class="note">Nenhum treino ' + (per ? 'neste período.' : 'salvo ainda.') + '</p>';
   renderEvo(H);
-  renderRecs(hist); renderGoals(); renderNBA(); bkCheck(); try { renderTec(); } catch (e) { console.error(e); }
+  renderRecs(hist); renderGoals(); renderNBA(); bkCheck(); try { renderTec(); } catch (e) { console.error(e); } try { if (document.body.dataset.t === 'conq') renderConq(); } catch (e) { console.error(e); }
   renderLearn();
 }
 // ---------- metas da semana ----------
@@ -1636,8 +1663,8 @@ function renderGoals() {
   if (document.activeElement !== $('gA')) $('gA').value = G.a; if (document.activeElement !== $('gP')) $('gP').value = G.p;
   const w0 = weekStart(new Date()).getTime(), W = hist.filter(h => new Date(h.date).getTime() >= w0), a = W.reduce((t, h) => t + (h.a || 0), 0), c = W.reduce((t, h) => t + (h.c || 0), 0), p = a ? 100 * c / a : 0;
   const left = 7 - ((new Date().getDay() + 6) % 7);
-  $('goals').innerHTML = `<div class="lr"><span>Arremessos: <b>${a}</b> de ${G.a}</span><b class="${a >= G.a ? 'ok' : 'wait'}">${a >= G.a ? 'meta batida ✓' : 'faltam ' + (G.a - a)}</b></div><div class="gbar"><i style="width:${Math.min(100, 100 * a / G.a)}%"></i></div>
-    <div class="lr"><span>Aproveitamento: <b>${a ? Math.round(p) + '%' : '–'}</b> (meta ${G.p}%)</span><b class="${a && p >= G.p ? 'ok' : 'wait'}">${a && p >= G.p ? 'meta batida ✓' : a ? 'faltam ' + Math.ceil(G.p - p) + ' pontos' : 'sem treino ainda'}</b></div><div class="gbar"><i style="width:${Math.min(100, 100 * p / G.p)}%;background:var(--cyan)"></i></div>
+  $('goals').innerHTML = `<div class="lr lr2"><span>Arremessos: <b>${a}</b> de ${G.a}</span><b class="${a >= G.a ? 'ok' : 'wait'}">${a >= G.a ? 'meta batida ✓' : 'faltam ' + (G.a - a)}</b></div><div class="gbar"><i style="width:${Math.min(100, 100 * a / G.a)}%"></i></div>
+    <div class="lr lr2"><span>Aproveitamento: <b>${a ? Math.round(p) + '%' : '–'}</b> (meta ${G.p}%)</span><b class="${a && p >= G.p ? 'ok' : 'wait'}">${a && p >= G.p ? 'meta batida ✓' : a ? 'faltam ' + Math.ceil(G.p - p) + ' pontos' : 'sem treino ainda'}</b></div><div class="gbar"><i style="width:${Math.min(100, 100 * p / G.p)}%;background:var(--cyan)"></i></div>
     <p class="note">Semana de segunda a domingo · ${left === 1 ? 'último dia' : 'faltam ' + left + ' dias'} · ${W.length} ${W.length === 1 ? 'treino' : 'treinos'} nesta semana.</p>`;
 }
 for (const id of ['gA', 'gP']) $(id).onchange = () => { const a = Math.max(10, +$('gA').value || 300), p = Math.min(100, Math.max(5, +$('gP').value || 40)); store('arremessos-metas', JSON.stringify({ a, p })); renderGoals(); };
@@ -2099,7 +2126,7 @@ async function keepAwake(on) { try { if (on) { if (!wakeA) { wakeA = await navig
 document.addEventListener('visibilitychange', () => { if (!document.hidden && fast) keepAwake(true); });
 try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} // app instalável e sem internet
 // ---------- abas ----------
-for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); if (b.dataset.t === 'comp') renderNBA(); if (b.dataset.t === 'tec') renderTec(); };
+for (const b of $('tabs').children) b.onclick = () => { document.body.dataset.t = b.dataset.t; for (const x of $('tabs').children) x.classList.toggle('on', x === b); window.scrollTo({ top: 0 }); if (b.dataset.t === 'quadra' || b.dataset.t === 'stats') court(); if (b.dataset.t === 'comp') renderNBA(); if (b.dataset.t === 'tec') renderTec(); if (b.dataset.t === 'conq') renderConq(); };
 // ---------- quadra aprendida sozinha: chão pelo seu tamanho na imagem (você tem 1,81 m) ----------
 let FLOOR = { obs: [], fit: null }; try { const f0 = JSON.parse(store('arremessos-chao') || 'null'); if (f0 && f0.obs) FLOOR = f0; } catch (e) {}
 function fitFloor() { // altura do corpo na imagem = a·(y dos pés − horizonte)
@@ -2378,8 +2405,115 @@ function liveStop() {
   status('Treino ao vivo salvo: ' + A.shots.length + ' arremessos', 'on');
   if ($('spk').checked && !wasProg) say(summaryText(), true);
   if (wasProg) { cur.src = 'Treino: ' + wasProg.p.name; saveCur(); renderProgs(); }
+  setTimeout(() => { try { checkAch(true); } catch (e) {} }, 800);
 }
 $('bLive').onclick = () => { if (live) liveStop(); else liveStart(); };
+// ---------- conquistas: nível, medalhas, desafios do mês ----------
+const TIERS = ['', 'Bronze', 'Prata', 'Ouro', 'Diamante'];
+function achStats() {
+  const H = hist.slice().sort((a, b) => a.date < b.date ? -1 : 1), S = H.flatMap(h => (h.shots || []).map(x => ({ ...unpack(x), date: h.date })));
+  const st = { shots: S.length, makes: S.filter(x => x.made).length, sessions: H.length };
+  let run = 0, best = 0; for (const h of H) { run = 0; for (const x of (h.shots || [])) { run = x[0] ? run + 1 : 0; best = Math.max(best, run); } } st.streak = best;
+  st.bestPct = Math.max(0, ...H.filter(h => (h.a || 0) >= 20).map(h => Math.round(100 * h.c / h.a)));
+  const days = [...new Set(H.map(h => { const t = new Date(h.date); t.setHours(0, 0, 0, 0); return t.getTime(); }))].sort((a, b) => a - b);
+  let ds = days.length ? 1 : 0, dsb = ds; for (let i = 1; i < days.length; i++) { ds = Math.round((days[i] - days[i - 1]) / 864e5) === 1 ? ds + 1 : 1; dsb = Math.max(dsb, ds); } st.dayStreak = dsb; st.days = days.length;
+  const wk = {}; for (const t of days) { const k = weekStart(t).getTime(); wk[k] = (wk[k] || 0) + 1; } st.weekDays = Math.max(0, ...Object.values(wk));
+  st.far = S.filter(x => x.made && x.geo && x.geo.dist >= 5).length; st.longest = Math.max(0, ...S.filter(x => x.made && x.geo).map(x => x.geo.dist));
+  st.layups = S.filter(x => x.made && x.geo && x.geo.dist < 1.6).length;
+  st.maxSess = Math.max(0, ...H.map(h => h.a || 0)); st.maxMin = Math.max(0, ...H.map(h => (h.dur || 0) / 60));
+  st.morning = H.some(h => new Date(h.date).getHours() < 8); st.night = H.some(h => new Date(h.date).getHours() >= 20);
+  st.live = H.some(h => /Ao vivo|Treino:/.test(h.src || ''));
+  let PH = []; try { PH = JSON.parse(store('arremessos-prog-hist') || '[]'); } catch (e) {} st.progs = PH.length;
+  st.min1 = Math.max(0, ...PH.filter(x => x.id === 'min').map(x => x.c)); st.ft = Math.max(0, ...PH.filter(x => x.id === 'll' && x.a >= 10).map(x => x.c));
+  st.volta = Math.max(0, ...PH.filter(x => x.id === 'volta' && x.a >= 20).map(x => Math.round(100 * x.c / x.a)));
+  st.avance = Math.min(999, ...PH.filter(x => x.id === 'avance').map(x => x.a)); st.progKinds = new Set(PH.map(x => x.id)).size;
+  st.recs = Object.keys(progRecs()).length;
+  const B = S.filter(x => x.body); st.body = B.length; st.cons = 0; try { if (B.length >= 20) st.cons = consistency(B.slice(-50)) || 0; } catch (e) {}
+  st.lefty = B.filter(x => x.body.h === 'E' && x.made).length;
+  let E = {}; try { E = JSON.parse(store('arremessos-nba-evo') || '{}'); } catch (e) {} st.nba = Math.max(0, ...Object.values(E).map(x => x.s || 0)); st.nbaN = new Set(Object.values(E).map(x => x.n)).size;
+  let G = { a: 300, p: 40 }; try { G = Object.assign(G, JSON.parse(store('arremessos-metas') || '{}')); } catch (e) {}
+  const wa = {}; for (const h of H) { const k = weekStart(h.date).getTime(); const q = wa[k] = wa[k] || [0, 0]; q[0] += h.a || 0; q[1] += h.c || 0; } st.goalWeeks = Object.values(wa).filter(q => q[0] >= G.a).length; st.goalPct = Object.values(wa).filter(q => q[0] >= 30 && 100 * q[1] / q[0] >= G.p).length;
+  st.perfect10 = H.some(h => { const L = h.shots || []; for (let i = 0; i + 10 <= L.length; i++) if (L.slice(i, i + 10).every(x => x[0])) return true; return false; });
+  return st;
+}
+const ACH = [ // [id, ícone, nome, descrição (use {n}), valor, faixas bronze/prata/ouro/diamante]
+  ['arr', '🏀', 'Volume de treino', '{n} arremessos no total', s => s.shots, [100, 1000, 5000, 20000]],
+  ['ces', '🎯', 'Cestas', '{n} cestas no total', s => s.makes, [50, 500, 2500, 10000]],
+  ['seq', '🔥', 'Mão quente', '{n} cestas seguidas', s => s.streak, [5, 10, 15, 25]],
+  ['pct', '📈', 'Pontaria', 'treino com {n}% (mín. 20 arremessos)', s => s.bestPct, [50, 60, 70, 80]],
+  ['dias', '📅', 'Disciplina', '{n} dias seguidos treinando', s => s.dayStreak, [3, 7, 14, 30]],
+  ['sem', '🗓️', 'Semana cheia', '{n} dias de treino na mesma semana', s => s.weekDays, [3, 4, 5, 7]],
+  ['tot', '🏟️', 'Dedicação', '{n} dias de treino no total', s => s.days, [10, 30, 100, 250]],
+  ['longe', '📏', 'Alcance', '{n} cestas de 5 m ou mais', s => s.far, [10, 50, 200, 1000]],
+  ['lng', '🚀', 'Cesta longa', 'cesta de {n} m', s => Math.floor(s.longest * 10) / 10, [5, 6, 6.75, 7.24]],
+  ['band', '🏃', 'Infiltrador', '{n} bandejas certas', s => s.layups, [20, 100, 400, 1500]],
+  ['mar', '⏱️', 'Maratona', 'treino de {n} arremessos', s => s.maxSess, [100, 200, 300, 500]],
+  ['min', '⌛', 'Resistência', 'treino de {n} minutos', s => Math.floor(s.maxMin), [30, 60, 90, 120]],
+  ['g', '🧑‍🏫', 'Aluno aplicado', '{n} treinos guiados completos', s => s.progs, [1, 10, 50, 150]],
+  ['gk', '🗺️', 'Explorador', '{n} tipos de treino guiado', s => s.progKinds, [2, 4, 6, 7]],
+  ['m1', '⚡', '1 minuto', '{n} cestas em 1 minuto', s => s.min1, [8, 12, 16, 20]],
+  ['ll', '🎳', 'Lance livre', '{n} de 10 lances livres', s => s.ft, [7, 8, 9, 10]],
+  ['volta', '🌍', 'Volta ao mundo', '{n}% na volta ao mundo', s => s.volta, [40, 55, 70, 85]],
+  ['cons', '🧠', 'Mecânica', 'consistência {n}', s => s.cons, [55, 65, 75, 85]],
+  ['nba', '⭐', 'Parece da NBA', '{n}% parecido com um jogador', s => s.nba, [40, 55, 70, 85]],
+  ['meta', '🏁', 'Meta batida', 'meta de arremessos em {n} semanas', s => s.goalWeeks, [1, 4, 12, 26]],
+  ['metp', '🎖️', 'Meta de pontaria', 'meta de aproveitamento em {n} semanas', s => s.goalPct, [1, 4, 12, 26]]
+];
+const ONE = [ // conquistas únicas
+  ['primeiro', '👟', 'Primeiro treino', 'Analisar o primeiro treino', s => s.sessions >= 1],
+  ['aovivo', '📹', 'Ao vivo', 'Fazer um treino ao vivo', s => s.live],
+  ['cedo', '🌅', 'Madrugador', 'Treinar antes das 8h', s => s.morning],
+  ['noite', '🌙', 'Coruja', 'Treinar depois das 20h', s => s.night],
+  ['dez', '💯', 'Perfeito', '10 cestas seguidas num treino', s => s.perfect10],
+  ['rec', '🏆', 'Recordista', 'Bater um recorde de treino guiado', s => s.recs >= 1],
+  ['ll10', '🥇', 'Lance livre perfeito', '10 de 10 nos lances livres', s => s.ft >= 10],
+  ['canhoto', '🤚', 'Mão fraca', '10 cestas com a mão esquerda', s => s.lefty >= 10],
+  ['avance', '🥷', 'Sniper', 'Avance quando acertar com 10 arremessos ou menos', s => s.avance <= 10],
+  ['nba3', '🔁', 'Camaleão', 'Parecer com 3 jogadores da NBA diferentes ao longo das semanas', s => s.nbaN >= 3]
+];
+const LEVELS = ['Novato', 'Iniciante', 'Aprendiz', 'Arremessador', 'Atirador', 'Especialista', 'Franco-atirador', 'Elite', 'All-Star', 'MVP', 'Lenda'];
+function xpOf(s, got) { return s.shots + s.makes * 2 + s.days * 20 + s.progs * 40 + got * 60; }
+function levelOf(xp) { let L = 0, need = 500, acc = 0; while (xp >= acc + need && L < 60) { acc += need; L++; need = Math.round(need * 1.35); } return { L, acc, need, xp }; }
+function achState() { try { return JSON.parse(store('arremessos-conquistas') || '{}'); } catch (e) { return {}; } }
+function checkAch(announce) { // grava o que foi conquistado agora e avisa
+  const s = achStats(), st = achState(), now = new Date().toISOString(), fresh = [];
+  for (const [id, ic, name, d, f, tr] of ACH) { const v = f(s); let t = 0; tr.forEach((x, i) => { if (v >= x) t = i + 1; }); const old = st[id] ? st[id].t : 0; if (t > old) { st[id] = { t, d: now }; fresh.push(`${ic} ${name} · ${TIERS[t]}`); } }
+  for (const [id, ic, name, d, f] of ONE) if (f(s) && !st[id]) { st[id] = { t: 1, d: now }; fresh.push(`${ic} ${name}`); }
+  store('arremessos-conquistas', JSON.stringify(st));
+  if (announce && fresh.length) { toast('Conquista desbloqueada!<br>' + fresh.slice(0, 3).map(esc).join('<br>') + (fresh.length > 3 ? `<br>+${fresh.length - 3}` : '')); }
+  return { s, st };
+}
+function toast(html) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = html; document.body.appendChild(t); setTimeout(() => t.remove(), 4500); }
+let cqF = 'all';
+for (const b of $('cqF').children) b.onclick = () => { cqF = b.dataset.f; for (const x of $('cqF').children) x.classList.toggle('on', x === b); renderConq(); };
+function renderConq() {
+  const { s, st } = checkAch(false), dd = d => esc(new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }));
+  const got = Object.values(st).reduce((t, x) => t + (x.t || 0), 0), maxT = ACH.length * 4 + ONE.length;
+  const xp = xpOf(s, got), lv = levelOf(xp), nm = LEVELS[Math.min(LEVELS.length - 1, Math.floor(lv.L / 2))];
+  $('cqLvl').innerHTML = `<div class="lvl"><div class="badge">${lv.L + 1}</div><div style="flex:1"><b>${nm}</b><br><small style="color:var(--mute)">${xp - lv.acc} de ${lv.need} pontos para o nível ${lv.L + 2}</small><div class="gbar"><i style="width:${Math.min(100, 100 * (xp - lv.acc) / lv.need)}%;background:#f2c14e"></i></div></div></div>
+    <div class="recs"><div><small>Medalhas</small><b>${got} / ${maxT}</b></div><div><small>Pontos</small><b>${xp.toLocaleString('pt-BR')}</b></div></div><p class="note">Pontos: 1 por arremesso, 2 por cesta, 20 por dia treinado, 40 por treino guiado e 60 por medalha.</p>`;
+  // desafios do mês
+  const m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0); const HM = hist.filter(h => new Date(h.date) >= m0), am = HM.reduce((t, h) => t + (h.a || 0), 0), cm = HM.reduce((t, h) => t + (h.c || 0), 0), dm = new Set(HM.map(h => new Date(h.date).toDateString())).size;
+  let PH = []; try { PH = JSON.parse(store('arremessos-prog-hist') || '[]'); } catch (e) {} const pm = PH.filter(x => new Date(x.date) >= m0).length;
+  const mes = m0.toLocaleDateString('pt-BR', { month: 'long' }), lastDay = new Date(m0.getFullYear(), m0.getMonth() + 1, 0).getDate(), left = lastDay - new Date().getDate();
+  const ch = [['🏀', '1.000 arremessos no mês', am, 1000], ['🎯', '400 cestas no mês', cm, 400], ['📅', '12 dias de treino no mês', dm, 12], ['🧑‍🏫', '8 treinos guiados no mês', pm, 8]];
+  $('cqMon').innerHTML = `<p class="note" style="margin-top:0">Desafios de ${mes} · ${left === 0 ? 'último dia' : 'faltam ' + left + ' dias'}</p>` + ch.map(([ic, n, v, g]) => `<div class="lr lr2"><span>${ic} ${n}</span><b class="${v >= g ? 'ok' : 'wait'}">${v >= g ? 'feito ✓' : v + ' / ' + g}</b></div><div class="gbar"><i style="width:${Math.min(100, 100 * v / g)}%"></i></div>`).join('');
+  // medalhas
+  const cards = [];
+  for (const [id, ic, name, d, f, tr] of ACH) { const v = f(s), t = st[id] ? st[id].t : 0, nextT = Math.min(3, t), goal = tr[nextT], prev = nextT ? tr[nextT - 1] : 0, prog = t >= 4 ? 1 : Math.max(0, Math.min(1, (v - prev) / (goal - prev)));
+    cards.push({ got: t > 0, prog, html: `<div class="md ${t ? '' : 'lock'}"><span class="tier t${t}"></span><div class="ic">${ic}</div><b>${name}${t ? ' · ' + TIERS[t] : ''}</b><small>${t >= 4 ? 'Nível máximo: ' + d.replace('{n}', tr[3]) : 'Próximo: ' + d.replace('{n}', goal.toLocaleString('pt-BR'))}</small><small>Agora: ${(Math.round(v * 10) / 10).toLocaleString('pt-BR')}${t ? ' · desde ' + dd(st[id].d) : ''}</small><div class="pb"><i style="width:${Math.round(100 * prog)}%"></i></div></div>`, name, d: d.replace('{n}', goal), ic, todo: t < 4 });
+  }
+  for (const [id, ic, name, d, f] of ONE) { const g2 = !!st[id]; cards.push({ got: g2, prog: g2 ? 1 : 0, html: `<div class="md ${g2 ? '' : 'lock'}"><span class="tier t${g2 ? 3 : 0}"></span><div class="ic">${ic}</div><b>${name}</b><small>${d}</small>${g2 ? `<small>Conquistada em ${dd(st[id].d)}</small>` : ''}</div>`, todo: !g2 }); }
+  const show = cards.filter(c => cqF === 'all' || (cqF === 'got' ? c.got : c.todo));
+  $('cqAll').innerHTML = `<div class="medals">${show.map(c => c.html).join('')}</div>`;
+  // quase lá
+  const near = cards.filter(c => c.todo && c.prog > 0 && c.prog < 1 && c.d).sort((a, b) => b.prog - a.prog).slice(0, 4);
+  $('cqNext').innerHTML = near.length ? near.map(c => `<div class="lr lr2"><span>${c.ic} ${c.name}: ${esc(c.d)}</span><b class="wait">${Math.round(100 * c.prog)}%</b></div><div class="gbar"><i style="width:${Math.round(100 * c.prog)}%"></i></div>`).join('') : '<p class="note">Treine para começar a encher as barras.</p>';
+  // linha do tempo
+  const allN = Object.fromEntries(ACH.map(a => [a[0], a]).concat(ONE.map(a => [a[0], a])));
+  const tl = Object.entries(st).filter(([k]) => allN[k]).sort((a, b) => a[1].d < b[1].d ? 1 : -1).slice(0, 15);
+  $('cqTime').innerHTML = tl.length ? `<div class="scroll"><table class="wk rt"><tbody>${tl.map(([k, v]) => `<tr><td>${allN[k][1]} ${allN[k][2]}${allN[k].length > 5 && v.t ? ' · ' + TIERS[v.t] : ''}</td><td><small>${dd(v.d)}</small></td></tr>`).join('')}</tbody></table></div>` : '<p class="note">Suas conquistas vão aparecer aqui.</p>';
+}
 // ---------- técnica: consistência, cesta × erro, evolução e dicas ----------
 const TM = [ // métricas do arremesso: nome, leitura, escala (variação "normal"), formato
   { k: 'tp', n: 'Tempo de soltura', g: x => x.body && x.body.tp, sc: 0.15, f: v => v.toFixed(2).replace('.', ',') + ' s', low: true },
@@ -2865,6 +2999,7 @@ async function fastAnalyze(file) {
   if (failed) msg(skipped > 0.5 ? `Um trecho de ${Math.round(skipped)} s do vídeo estava com defeito e foi pulado; o resto foi analisado até o fim.` : 'Parte do vídeo não pôde ser lida; os arremessos até ali foram contados.');
   for (const fn of [render, saveCur, () => { if (!stopped) commitLearning(); }, showDoubt, showDiag]) { try { fn(); } catch (e) { console.error(e); } }
   $('narrBar').hidden = true; keepAwake(false);
+  if (!stopped) setTimeout(() => { try { checkAch(true); } catch (e) {} }, 800);
   return true;
 }
 
