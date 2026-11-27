@@ -2507,14 +2507,20 @@ function detectMarks(img, hp) {
   const W = img.width, H = img.height, d = img.data, R = MK_R(), lum = (x, y) => { const k = ((y | 0) * W + (x | 0)) * 4; return 0.3 * d[k] + 0.59 * d[k + 1] + 0.11 * d[k + 2]; };
   const isOr = k => { const r = d[k], g = d[k + 1], b = d[k + 2]; return r > 110 && r - b > 60 && r - g > 25 && g - b > 12; };
   const y0 = Math.min(H - 10, Math.round(hp.bot + hp.w * 1.0)), pts = [];
-  for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) if (isOr((y * W + x) * 4)) pts.push(x, y);
+  const F = new Uint8Array(W * H), BIG = new Uint8Array(W * H); // BIG: manchas laranja grandes (ferrugem)
+  { // manchas grandes (ferrugem, portão) não são linha pintada: tira os pixels onde quase tudo em volta é laranja
+    const M = new Uint8Array(W * H); for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) if (isOr((y * W + x) * 4)) M[y * W + x] = 1;
+    const I = new Uint32Array((W + 1) * (H + 1)); for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += M[y * W + x]; I[(y + 1) * (W + 1) + x + 1] = I[y * (W + 1) + x + 1] + row; } }
+    const rr = Math.max(8, Math.round(W / 64)), box = (x1, y1, x2, y2) => I[y2 * (W + 1) + x2] - I[y1 * (W + 1) + x2] - I[y2 * (W + 1) + x1] + I[y1 * (W + 1) + x1];
+    for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) if (M[y * W + x]) { const x1 = Math.max(0, x - rr), x2 = Math.min(W, x + rr + 1), y1 = Math.max(0, y - rr), y2 = Math.min(H, y + rr + 1); const dn = box(x1, y1, x2, y2) / ((x2 - x1) * (y2 - y1)); if (dn < 0.25) { pts.push(x, y); F[y * W + x] = 1; } else if (dn > 0.4) BIG[y * W + x] = 1; }
+  }
   if (pts.length < 40) return { ok: false, why: 'linhas laranja não encontradas' };
   // Hough: retas laranja finas que passam embaixo do aro
   const NT = 360, rmax = Math.hypot(W, H), NR = Math.ceil(2 * rmax / 1.5), acc = new Uint32Array(NT * NR), cs = [], sn = [];
   for (let t = 0; t < NT; t++) { cs.push(Math.cos(t * Math.PI / NT)); sn.push(Math.sin(t * Math.PI / NT)); }
   const step = Math.max(2, Math.floor(pts.length / 2 / 30000)) * 2;
   for (let p = 0; p < pts.length; p += step) { const x = pts[p], y = pts[p + 1]; for (let t = 0; t < NT; t++) acc[t * NR + Math.round((x * cs[t] + y * sn[t] + rmax) / 1.5)]++; }
-  const orAt = (x, y) => x >= 0 && y >= 0 && x < W && y < H && isOr(((y | 0) * W + (x | 0)) * 4);
+  const orAt = (x, y) => x >= 0 && y >= 0 && x < W && y < H && F[(y | 0) * W + (x | 0)] === 1;
   const cand = [];
   for (let it = 0; it < 40; it++) {
     let best = 0, bi = -1; for (let i = 0; i < acc.length; i++) if (acc[i] > best) { best = acc[i]; bi = i; }
@@ -2522,36 +2528,71 @@ function detectMarks(img, hp) {
     const t = Math.floor(bi / NR), rho = (bi % NR) * 1.5 - rmax; for (let dt = -6; dt <= 6; dt++) for (let dr = -6; dr <= 6; dr++) { const tt = (t + dt + NT) % NT, rr = (bi % NR) + dr; if (rr >= 0 && rr < NR) acc[tt * NR + rr] = 0; }
     const c = cs[t], s = sn[t], dx = -s, dy = c; // direção da reta
     // pontos sobre a reta (faixa fina) e fora dela (faixa larga): linha pintada é fina
-    let on = 0, off = 0, tmin = 1e9, tmax = -1e9;
-    for (let u = -rmax; u < rmax; u += 1) { const x = c * rho + dx * u, y = s * rho + dy * u; if (y < y0 || y >= H || x < 0 || x >= W) continue; if (orAt(x, y) || orAt(x + c, y + s) || orAt(x - c, y - s)) { on++; tmin = Math.min(tmin, u); tmax = Math.max(tmax, u); } if (orAt(x + 7 * c, y + 7 * s) && orAt(x - 7 * c, y - 7 * s)) off++; }
+    let on = 0, off = 0, tmin = 1e9, tmax = -1e9, rs = null, rl = 0, bl = [0, 0];
+    for (let u = -rmax; u < rmax; u += 1) { const x = c * rho + dx * u, y = s * rho + dy * u; if (y < y0 || y >= H || x < 0 || x >= W) continue; if (orAt(x, y) || orAt(x + c, y + s) || orAt(x - c, y - s)) { on++; tmin = Math.min(tmin, u); tmax = Math.max(tmax, u); if (rs == null || u - rl > 18) { rs = u; } rl = u; if (rl - rs > bl[1] - bl[0]) bl = [rs, rl]; } if (orAt(x + 7 * c, y + 7 * s) && orAt(x - 7 * c, y - 7 * s)) off++; }
     if (on < 25 || off > on * 0.35 || tmax - tmin < 40) continue;
     if (cand.some(q => Math.abs(Math.abs(q.c * c + q.s * s) - 1) < 0.004 && Math.abs(Math.abs(q.rho) - Math.abs(rho)) < 14)) continue; // a mesma linha de novo
-    cand.push({ c, s, rho, on, dx, dy });
+    cand.push({ c, s, rho, on, dx, dy, e: [[c * rho + dx * bl[0], s * rho + dy * bl[0]], [c * rho + dx * bl[1], s * rho + dy * bl[1]]], len: bl[1] - bl[0] }); // trecho contínuo mais longo da tinta
   }
   // o ponto embaixo do aro: onde 2 ou 3 retas se cruzam, abaixo do aro e quase na vertical dele
   const inter = (a, b) => { const det = a.c * b.s - a.s * b.c; if (Math.abs(det) < 0.05) return null; return [(a.rho * b.s - b.rho * a.s) / det, (a.c * b.rho - b.c * a.rho) / det]; };
+  const nearX = (l, X) => l.len > H * 0.1 && Math.abs(l.c) > 0.2 && Math.min(...l.e.map(p => Math.hypot(p[0] - X[0], p[1] - X[1]))) < Math.max(30 * W / 1280, hp.w * 0.6, l.len * 0.3);
+  const farE = (l, X) => l.e.reduce((m, p) => Math.hypot(p[0] - X[0], p[1] - X[1]) > Math.hypot(m[0] - X[0], m[1] - X[1]) ? p : m), apart = (a, b, X) => { const p = farE(a, X), q = farE(b, X); return Math.abs(p[0] * b.c + p[1] * b.s - b.rho) > H * 0.06 && Math.abs(q[0] * a.c + q[1] * a.s - a.rho) > H * 0.06; };
+  DBGM.ce = cand.map(l => [+l.c.toFixed(3), +l.s.toFixed(3), Math.round(l.rho), Math.round(l.len), l.e.map(p => p.map(Math.round))]);
   let bestSet = null;
   for (let i = 0; i < cand.length; i++) for (let j = i + 1; j < cand.length; j++) {
     const X = inter(cand[i], cand[j]); if (!X || X[1] < hp.bot || X[1] > H || Math.abs(X[0] - hp.cx) > hp.w * 2.5) continue;
     if (Math.abs(cand[i].c * cand[j].c + cand[i].s * cand[j].s) > 0.985) continue;
+    if (!nearX(cand[i], X) || !nearX(cand[j], X) || !apart(cand[i], cand[j], X)) continue; // a tinta tem que começar no ponto embaixo do aro
     const set = [cand[i], cand[j]];
-    for (let k = 0; k < cand.length; k++) if (k !== i && k !== j && Math.abs(cand[k].c * cand[i].c + cand[k].s * cand[i].s) < 0.985 && Math.abs(cand[k].c * cand[j].c + cand[k].s * cand[j].s) < 0.985) { const Y = inter(cand[i], cand[k]); if (Y && Math.hypot(Y[0] - X[0], Y[1] - X[1]) < Math.max(6, hp.w * 0.3)) { set.push(cand[k]); break; } }
+    for (let k = 0; k < cand.length; k++) if (k !== i && k !== j && Math.abs(cand[k].c * cand[i].c + cand[k].s * cand[i].s) < 0.985 && Math.abs(cand[k].c * cand[j].c + cand[k].s * cand[j].s) < 0.985) { const Y = inter(cand[i], cand[k]); if (Y && nearX(cand[k], X) && apart(cand[k], cand[i], X) && apart(cand[k], cand[j], X) && Math.hypot(Y[0] - X[0], Y[1] - X[1]) < Math.max(6, hp.w * 0.3)) { set.push(cand[k]); break; } }
     const sc = set.length * 1e6 + set.reduce((t, l) => t + l.on, 0);
     if (!bestSet || sc > bestSet.sc) bestSet = { set, X, sc };
   }
-  if (!bestSet) return { ok: false, why: 'as linhas laranja não se cruzam embaixo do aro' };
+  let dash = null;
+  if (!bestSet) { // só a linha central: o X é a ponta dela embaixo do aro, e as divisas são tracinhos laranja em cima dos círculos
+    const xAt = (l, y) => Math.abs(l.c) < 1e-6 ? null : (l.rho - y * l.s) / l.c;
+    DBGM.cands = cand.map(l => [+l.c.toFixed(3), +l.s.toFixed(3), Math.round(l.rho), l.on, Math.round(xAt(l, hp.bot + hp.w * 4))]); DBGM.npts = pts.length / 2; DBGM.W = W; DBGM.hpx = [Math.round(hp.cx), Math.round(hp.bot), Math.round(hp.w)];
+    const cl = cand.filter(l => { const x = xAt(l, hp.bot + hp.w * 4); return x != null && Math.abs(x - hp.cx) < hp.w * 3; }).sort((a, b) => b.len - a.len)[0];
+    if (!cl) return { ok: false, why: 'linha laranja central não encontrada' };
+    let dx = cl.dx, dy = cl.dy; if (dy < 0) { dx = -dx; dy = -dy; }
+    // anda pela linha de baixo para cima até a tinta acabar perto do aro
+    let x0 = xAt(cl, H - 2), y0b = H - 2; if (x0 == null || x0 < 0 || x0 >= W) { const u = (W / 2 - (cl.c * cl.rho)) / dx; x0 = cl.c * cl.rho + dx * u; y0b = cl.s * cl.rho + dy * u; }
+    let top = null, gap = 0;
+    for (let u = 0; u < H * 1.5; u += 1) { const x = x0 - dx * u, y = y0b - dy * u; if (y < hp.bot || x < 0 || x >= W) break; let hit = false; for (let o = -4; o <= 4 && !hit; o++) hit = orAt(x + cl.c * o, y + cl.s * o); if (hit) { top = [x, y]; gap = 0; } else if (top && ++gap > Math.max(8, hp.w * 0.4)) break; }
+    { const e = cl.e[0][1] < cl.e[1][1] ? cl.e[0] : cl.e[1]; if (!top || e[1] < top[1]) top = e.slice(); }
+    if (!top) return { ok: false, why: 'ponta da linha central não encontrada' };
+    // tracinhos: manchas laranja pequenas fora da linha central, com tinta preta perto
+    const seen = new Uint8Array(W * H), blobs = [], yb = Math.round(top[1]);
+    const RB = new Float64Array((W + 1) * (H + 1)); for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { const k = (y * W + x) * 4; row += d[k] - d[k + 2]; RB[(y + 1) * (W + 1) + x + 1] = RB[y * (W + 1) + x + 1] + row; } }
+    const rq = Math.max(10, Math.round(W / 50)), rbM = (x, y) => { const x1 = Math.max(0, x - rq), x2 = Math.min(W, x + rq + 1), y1 = Math.max(0, y - rq), y2 = Math.min(H, y + rq + 1); return (RB[y2 * (W + 1) + x2] - RB[y1 * (W + 1) + x2] - RB[y2 * (W + 1) + x1] + RB[y1 * (W + 1) + x1]) / ((x2 - x1) * (y2 - y1)); };
+    // tinta laranja (mesmo desbotada ou no chão molhado): bem mais alaranjada que o chão em volta
+    const isOrW = k => { const r = d[k], g = d[k + 1], b = d[k + 2]; if (!(r > 120 && r - b > 40 && r - g > 25 && g >= b - 5)) return false; const p = k >> 2; const px = p % W, py = (p / W) | 0; for (let oy = -3; oy <= 3; oy += 3) for (let ox = -3; ox <= 3; ox += 3) { const q = p + oy * W + ox; if (q >= 0 && q < W * H && BIG[q]) return false; } if (isOr(k)) return true; return r - b > Math.min(rbM(px - rq, py), rbM(px + rq, py), rbM(px, py - rq), rbM(px, py + rq)) + 28; };
+    for (let y = yb; y < H; y++) for (let x = 0; x < W; x++) { const k = y * W + x; if (seen[k] || !isOrW(k * 4)) continue; const st = [k]; seen[k] = 1; let n = 0, sx = 0, sy = 0, x1 = x, x2 = x, y1 = y, y2 = y; while (st.length && n < 6000) { const q = st.pop(), qx = q % W, qy = (q / W) | 0; n++; sx += qx; sy += qy; x1 = Math.min(x1, qx); x2 = Math.max(x2, qx); y1 = Math.min(y1, qy); y2 = Math.max(y2, qy); for (const nb of [q - 1, q + 1, q - W, q + W]) if (nb >= 0 && nb < W * H && !seen[nb] && (nb / W | 0) >= yb && isOrW(nb * 4)) { seen[nb] = 1; st.push(nb); } }
+      if (n < 12 || n > 3000 || x2 - x1 > W * 0.12 || y2 - y1 > H * 0.08) continue;
+      const cx = sx / n, cy = sy / n, lx = xAt(cl, cy); if (lx != null && Math.abs(cx - lx) < Math.max(10, (x2 - x1) * 0.8)) continue; // é a própria linha central
+      let dark = 0; { const L = []; for (const kr of [0.7, 1.0]) for (let a = 0; a < 16; a++) { const ang = a * Math.PI / 8, px = cx + Math.cos(ang) * Math.max(6, (x2 - x1) * kr), py = cy + Math.sin(ang) * Math.max(5, (y2 - y1) * 1.6 * kr); if (px > 2 && py > 2 && px < W - 2 && py < H - 2) L.push(lum(px, py)); } const md = L.slice().sort((p, q) => p - q)[L.length >> 1] || 0; dark = L.filter(v => v < md * 0.65).length; if (L.some(v => v < 90)) dark = Math.max(dark, 2); } // linha preta do círculo passando pelo tracinho
+      if (dark < 2) continue; blobs.push({ x: cx, y: cy, n, side: lx != null && cx < lx ? -1 : 1, d: Math.hypot(cx - top[0], cy - top[1]) }); }
+    // cada lado: nenhum, um (2 m ou 4 m) ou dois tracinhos (2 m e 4 m, o de 4 m bem mais longe); a conta escolhe a combinação que fecha
+    const P = (b, i, sd) => [R[i] * Math.sin(sd * MK_A), R[i] * Math.cos(sd * MK_A), b.x / W, b.y / H], opts = {};
+    for (const sd of [-1, 1]) { const L = blobs.filter(b => b.side === sd).sort((a, b) => a.d - b.d).slice(0, 6), o = [[]]; L.forEach(b => { o.push([P(b, 0, sd)]); o.push([P(b, 1, sd)]); }); for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) { const q = L[j].d / L[i].d; if (q > 1.6 && q < 4.5) o.push([P(L[i], 0, sd), P(L[j], 1, sd)]); } opts[sd] = o; }
+    const dp = []; for (const a of opts[-1]) for (const b of opts[1]) if (a.length + b.length >= 2) dp.push([...a, ...b]);
+    DBGM.dash = { top, blobs: blobs.map(b => [Math.round(b.x), Math.round(b.y), b.n, b.side]) };
+    if (!dp.length) return { ok: false, why: 'tracinhos das divisas não encontrados' };
+    bestSet = { set: [cl], X: top }; dash = dp; DBGM.path = 'dash';
+  }
   // X: mínimos quadrados das retas
-  { let a11 = 0, a12 = 0, a22 = 0, b1 = 0, b2 = 0; for (const l of bestSet.set) { a11 += l.c * l.c; a12 += l.c * l.s; a22 += l.s * l.s; b1 += l.c * l.rho; b2 += l.s * l.rho; } const det = a11 * a22 - a12 * a12; if (Math.abs(det) > 1e-9) bestSet.X = [(b1 * a22 - b2 * a12) / det, (a11 * b2 - a12 * b1) / det]; }
-  const X = bestSet.X; DBGM.X = X; DBGM.cand = cand.length; DBGM.W = img.width;
+  if (!dash) { let a11 = 0, a12 = 0, a22 = 0, b1 = 0, b2 = 0; for (const l of bestSet.set) { a11 += l.c * l.c; a12 += l.c * l.s; a22 += l.s * l.s; b1 += l.c * l.rho; b2 += l.s * l.rho; } const det = a11 * a22 - a12 * a12; if (Math.abs(det) > 1e-9) bestSet.X = [(b1 * a22 - b2 * a12) / det, (a11 * b2 - a12 * b1) / det]; }
+  const X = bestSet.X; DBGM.X = X; DBGM.cand = cand.length; DBGM.cands = cand.map(l => [+l.c.toFixed(3), +l.s.toFixed(3), Math.round(l.rho), l.on]); DBGM.W = img.width;
   // direção de cada raio: para baixo (para o lado da câmera)
   const rays = bestSet.set.map(l => { let dx = l.dx, dy = l.dy; if (dy < 0) { dx = -dx; dy = -dy; } return { dx, dy, l, ang: Math.atan2(dx, dy) }; }).sort((a, b) => a.ang - b.ang);
   // papel de cada raio: central = o mais perto da vertical do meio; esquerda/direita pelos lados
-  let roles; if (rays.length === 3) roles = [-1, 0, 1]; else { const i0 = Math.abs(rays[0].ang) < Math.abs(rays[1].ang) ? 0 : 1; roles = rays.map((r, i) => i === i0 ? 0 : (r.ang < rays[i0].ang ? -1 : 1)); if (Math.abs(rays[0].ang - rays[1].ang) < 0.05) return { ok: false, why: 'só uma linha laranja' }; }
+  let roles; if (rays.length === 1) roles = [0]; else if (rays.length === 3) roles = [-1, 0, 1]; else { const i0 = Math.abs(rays[0].ang) < Math.abs(rays[1].ang) ? 0 : 1; roles = rays.map((r, i) => i === i0 ? 0 : (r.ang < rays[i0].ang ? -1 : 1)); if (Math.abs(rays[0].ang - rays[1].ang) < 0.05) return { ok: false, why: 'só uma linha laranja' }; }
   // cruzamentos com os círculos pretos ao longo de cada raio
   const RR = [];
   for (let k = 0; k < rays.length; k++) {
     const r = rays[k], nx = -r.dy, ny = r.dx, runs = []; let inRun = null;
-    for (let u = hp.w * 0.8; ; u += 0.5) {
+    for (let u = dash ? 10 : hp.w * 0.8; ; u += 0.5) {
       const x = X[0] + r.dx * u, y = X[1] + r.dy * u; if (x < 9 || y < 0 || x >= W - 9 || y >= H - 1) break;
       // o círculo cruza o raio: compara o ponto com o chão antes e depois dele, ao longo do raio, logo ao lado da linha laranja
       const sl = (o, sd) => lum(x + r.dx * o + nx * sd, y + r.dy * o + ny * sd);
@@ -2569,20 +2610,21 @@ function detectMarks(img, hp) {
       const c3 = u3 ? runs.find(u => Math.abs(u - u3) < Math.max(3, u3 * 0.06)) : null;
       hyp.push({ u: c3 ? [A0, B0, c3] : [A0, B0] });
     }
+    if (dash) for (let a = 0; a < runs.length; a++) for (let b = a + 1; b < runs.length; b++) for (let c = b + 1; c < runs.length; c++) if (runs[b] / runs[a] > 1.6 && runs[c] / runs[b] > 1.4) hyp.push({ u: [runs[a], runs[b], runs[c]] }); // a pintura à mão não fecha a perspectiva exata: a conta geral decide
     RR.push({ r, role: roles[k], hyp: hyp.sort((x, y) => y.u.length - x.u.length).slice(0, 14) });
   }
   const pt = (rk, i, u) => { const ang = rk.role * MK_A, rr = R[i]; return [rr * Math.sin(ang), rr * Math.cos(ang), (X[0] + rk.r.dx * u) / W, (X[1] + rk.r.dy * u) / H]; };
   const fitErr = P2 => { const Hm2 = homog(P2); if (!Hm2) return null; const E2 = P2.map(p => { const q = hApply(Hm2, p[0], p[1]); return Math.hypot((q[0] - p[2]) * W, (q[1] - p[3]) * H); }); return { Hm: Hm2, E: E2, m: E2.reduce((t, e) => t + e, 0) / E2.length }; };
   let best = null; const X0 = [0, 0, X[0] / W, X[1] / H], fits = [];
   const rec = (k, acc) => {
-    if (k === RR.length) { if (acc.length < 5) return; const f2 = fitErr(acc); if (!f2 || Math.max(...f2.E) > 5) return; const sc = f2.m + 6 / acc.length; fits.push({ sc, P: acc.slice(), f: f2 }); return; }
+    if (k === RR.length) { if (acc.length < 5) return; const f2 = fitErr(acc); if (!f2 || Math.max(...f2.E) > (dash ? 12 * W / 1280 : 5)) return; const sc = f2.m + (dash ? 40 : 6) / acc.length; fits.push({ sc, P: acc.slice(), f: f2 }); return; }
     rec(k + 1, acc);
     for (const h of RR[k].hyp) rec(k + 1, acc.concat(h.u.map((u, i) => pt(RR[k], i, u))));
   };
-  rec(0, [X0]);
+  if (dash) for (const c of dash) rec(0, [X0, ...c]); else rec(0, [X0]);
   // conferência: os círculos previstos pela conta têm que cair em cima da tinta preta
   const cover = Hm2 => { let n = 0, hit = 0; for (const rr of R) { let prev = null; for (let t = -80; t <= 80; t += 2) { const a = t * Math.PI / 180, q = hApply(Hm2, rr * Math.sin(a), rr * Math.cos(a)), x = q[0] * W, y = q[1] * H; if (prev && x > 12 && y > X[1] + 4 && x < W - 12 && y < H - 12) { let nx = -(y - prev[1]), ny = x - prev[0]; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l; const L0 = Math.min(lum(x, y), lum(x + nx, y + ny), lum(x - nx, y - ny)), ref = [-12, -9, -6, 6, 9, 12].map(o => lum(x + nx * o, y + ny * o)).sort((u, v) => u - v)[3]; n++; if (ref - L0 > 20) hit++; } prev = [x, y]; } } return n >= 15 ? hit / n : 0; };
-  fits.sort((a, b) => a.sc - b.sc); for (const fz of fits.slice(0, 60)) { fz.cov = cover(fz.f.Hm); if (!best || fz.cov - 0.02 * fz.f.m > best.cov - 0.02 * best.f.m) best = fz; }
+  fits.sort((a, b) => a.sc - b.sc); for (const fz of fits.slice(0, 60)) { fz.cov = cover(fz.f.Hm); const v = z => z.cov - 0.02 * z.f.m + (dash ? 0.04 * z.P.length : 0); if (!best || v(fz) > v(best)) best = fz; }
   DBGM.cov = best && best.cov;
   if (best && best.cov < 0.35) return { ok: false, why: 'os círculos pretos não batem com a conta' };
   if (!best) return { ok: false, why: 'círculos pretos não encontrados (ou não batem com o desenho)' };
