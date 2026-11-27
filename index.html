@@ -849,6 +849,7 @@ function createAnalyzer(opt) {
       const rec2 = { inBody: nearN ? inBody / nearN : 0, nearN, rise: rise / w, hasLaunch: !!lo };
       if (nearN <= 4 && nearN > 0 && inBody / nearN >= 0.9) { rejected++; continue; } // a "bola" perto do aro era você (mão/corpo perto da câmera)
       let plh = 0, plOver = 0; for (const g of LOG) if (g.pl && g.t >= e.t0 - 0.5 && g.t <= e.t1 + 0.3) { plh = Math.max(plh, (g.pl[3] - g.pl[1]) / w); if (g.pl[0] < h.cx && g.pl[2] > h.cx && g.pl[1] < rimY + w) plOver++; }
+      if (!lo && plh > 12 && nearN > 0 && inBody / nearN >= 0.5 && !(p >= 0.5)) { rejected++; continue; } // você passou perto da câmera com a bola: a bola grande na frente do aro não é arremesso
       out.push(old && old.rev ? old : { n: 0, t: t0, ta: e.t0, plh, plOver, layup, gv, z, ...rec2, made: p >= 0.5, p, f, occ, dNear: dNear / E, doubt: p > 0.2 && p < 0.8, rel, geo: gp || geo(rel) });
     }
     // seu arremesso: tempo de voo, velocidade de chegada, altura do arco (deste vídeo + vídeos anteriores)
@@ -2141,12 +2142,12 @@ paintCam();
 // a câmera frontal fica em outro lugar: o aro dela é guardado à parte
 function frontHoop() { try { return JSON.parse(store('arremessos-aro-frontal') || 'null'); } catch (e) { return null; } }
 function liveProfile() { if (facing !== 'user') return profile; const F = frontHoop(), P = Object.assign({}, profile || {}); P.hoop = F; P.hoopFixed = !!F; return P; }
-function calStart() { calOk = false; const P = liveProfile(); calib = P && P.hoopFixed ? null : { t0: (performance.now() - startT) / 1000, ms: performance.now(), n: 0 }; }
+function calStart() { calOk = false; const P = liveProfile(); calib = P && P.hoopFixed ? null : { t0: (performance.now() - startT) / 1000, ms: performance.now(), n: 0, h0: P && P.hoop ? { ...P.hoop } : null }; }
 $('hudFlip').onclick = async e => {
   e.stopPropagation(); if (!live || mk) return;
   facing = facing === 'environment' ? 'user' : 'environment'; store('arremessos-cam-lado', facing); paintCam();
   try {
-    const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
+    const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: false });
     if (stream) stream.getTracks().forEach(t => t.stop()); stream = ns; vid.srcObject = ns; await vid.play().catch(() => {});
   } catch (x) { $('hudL').textContent = 'Não consegui trocar a câmera'; return; }
   A.setProfile(liveProfile()); A.relearn(); A.reset(); liveSaid = []; calStart(); // outra visão da quadra: placar e calibração recomeçam
@@ -2232,14 +2233,17 @@ function calPersist() {
   return out;
 }
 let calOk = false;
-function calDone(text) { calib = null; calOk = true; setTimeout(camMeasure, 300); A.reset(); liveSaid = []; $('hudL').innerHTML = `<span style="color:var(--ok)">${text}</span>`; if ($('spk').checked) say('Aro encontrado. Pode começar.', true); }
+function calDone(text, kept) { // aro confirmado no mesmo lugar: os arremessos da calibração também contam
+  const h = A.hoop, h0 = calib && calib.h0, W = proc.width || 480, H = proc.height || 270;
+  const same = kept || (h && h0 && Math.abs(h.cx / W - h0.cx) < h0.w * 0.5 && Math.abs(h.y / H - h0.y) < h0.w * 0.5 * W / H);
+  calib = null; calOk = true; setTimeout(camMeasure, 300); if (!same) { A.reset(); liveSaid = []; } $('hudL').innerHTML = `<span style="color:var(--ok)">${text}</span>`; if ($('spk').checked) say('Aro encontrado. Pode começar.', true); }
 function calTick() {
   if (!calib || mk) return;
   if (A.hoop && !A.fromPrior) { calDone('Aro encontrado ✓ Pode começar'); return; }
   calAccum();
   const arcs = arcsSince(calib.t0); calib.n = arcs.length;
   const supOf = c => arcs.filter(a => a.desc.some(p => Math.abs(p.x - c.cx) < c.w * 1.2 + p.d && p.y > c.y - c.w * 1.2 && p.y < c.y + c.w * 1.6)).length;
-  if (A.hoop && arcs.length >= 2 && supOf(A.hoop) >= 2) { calDone('Aro confirmado pelos arremessos ✓ Pode começar'); return; } // o aro salvo está certo
+  if (A.hoop && arcs.length >= 2 && supOf(A.hoop) >= 2) { calDone('Aro confirmado pelos arremessos ✓ Pode começar', true); return; } // o aro salvo está certo
   if (arcs.length >= 3) { // o aro é a mancha laranja por onde as bolas passam descendo
     const W = proc.width, H = proc.height, C = calPersist();
     let best = null;
@@ -2274,7 +2278,7 @@ async function liveStart() {
   try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume(); } catch (e) {}
   stopNarration(); $('narrBar').hidden = true; markMode = false; $('markBar').hidden = true;
   stopAll(); msg('');
-  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false }); }
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: false }); }
   catch (e) { exitFull(); msg('A câmera não abriu. Abra o app pelo endereço do GitHub no Chrome e permita o uso da câmera.'); return; }
   vid.srcObject = stream; vid.removeAttribute('src'); live = true;
   await vid.play().catch(() => {});
