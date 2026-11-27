@@ -1395,7 +1395,7 @@ function court() {
 }
 
 try { window.__A = () => A; } catch (e) {}
-try { window.__mv = () => ({ classifyShot, poseMoves, ballMoves, geoK, floorNow, floorGeo, toCourt, proc, cam: () => +$('cam').value || 7, angDeg }); } catch (e) {}
+try { window.__mv = () => ({ bodyMetrics, classifyShot, poseMoves, ballMoves, geoK, floorNow, floorGeo, toCourt, proc, cam: () => +$('cam').value || 7, angDeg }); } catch (e) {}
 try { window.__arcs = () => arcsSince(0); window.__cands = () => rimCands(); } catch (e) {}
 try { window.__shots = () => A.shots.map(x => ({ t: x.ta ? (x.t + x.ta) / 2 : x.t, made: x.made, p: x.p, f: x.f, occ: x.occ, dn: x.dNear, body: x.body })); } catch (e) {}
 $('fOpen').onchange = e => { startFile(e.target.files[0]); e.target.value = ''; };
@@ -3228,8 +3228,31 @@ function bodyMetrics(F, t0) {
   const pre = F.filter(f => f.t >= t0 - 0.9 && f.t <= R.t);
   const knee = f => { const kL = ang(P(f, 23), P(f, 25), P(f, 27)), kR = ang(P(f, 24), P(f, 26), P(f, 28)); return vis(f, 25) > vis(f, 26) ? kL : kR; };
   const k = pre.length ? Math.min(...pre.map(knee).filter(v => v != null)) : null;
-  const base = medN(F.filter(f => f.t <= t0 - 0.35).map(ank)) ?? medN(F.slice(0, 3).map(ank));
-  const lift = Math.max(0, ...F.filter(f => f.t >= t0 - 0.2 && f.t <= t0 + 0.3).map(f => base - ank(f)));
+  // salto: o chão sob os pés é o da decolagem e o da aterrissagem (andar para a frente ou para trás não vira "salto")
+  const G = F.filter(f => vis(f, 27) > 0.4 || vis(f, 28) > 0.4);
+  const hpx = (() => { const v = F.filter(f => f.t <= t0 - 0.3 && vis(f, 0) > 0.5).map(f => (ank(f) - P(f, 0).y) * 1.07).sort((a, b) => b - a); return v.length >= 2 ? v[Math.floor(v.length * 0.2)] : body; })(); // você em pé, em pixels
+  const vel = i => (ank(G[i]) - ank(G[i - 1])) / Math.max(0.02, G[i].t - G[i - 1].t) / hpx;
+  let toI = -1, laI = -1;
+  for (let i = 1; i < G.length; i++) if (G[i].t > t0 - 0.7 && G[i].t < t0 + 0.25 && vel(i) < -0.8) { toI = i - 1; break; }
+  if (toI >= 0) { let pk = toI; for (let i = toI; i < G.length && G[i].t < G[toI].t + 0.9; i++) if (ank(G[i]) < ank(G[pk])) pk = i; for (let i = pk + 1; i < G.length; i++) if (ank(G[i]) >= ank(G[toI]) - hpx * 0.03 || (i > pk + 1 && vel(i) < 0.3 && ank(G[i]) > ank(G[pk]) + hpx * 0.05)) { laI = i; break; } }
+  const ground = t => { if (toI < 0) { const pr = G.filter(f => f.t >= t0 - 0.6 && f.t <= t0 - 0.25); return medN((pr.length ? pr : F.slice(0, 3)).map(ank)); } const a = G[toI], b = laI >= 0 ? G[laI] : null; if (!b || t <= a.t) return ank(a); if (t >= b.t) return ank(b); return ank(a) + (ank(b) - ank(a)) * (t - a.t) / (b.t - a.t); };
+  const base = ground(R.t);
+  let lift = 0; if (toI >= 0) for (let i = toI + 1; i < G.length && (laI < 0 || i < laI); i++) lift = Math.max(lift, ground(G[i].t) - ank(G[i]));
+  // altura pelo tamanho do corpo: em pé, o tornozelo fica numa altura da imagem que depende só da distância (o tamanho do corpo diz a distância);
+  // no ar, o corpo tem o mesmo tamanho e o tornozelo sobe. Funciona mesmo andando para a frente ou para trás (com as marcas no chão, fica ainda mais preciso)
+  let jcm = lift / hpx * 181;
+  try {
+    const FL = floorNow(), kk0 = (FL.hc - 0.08) / 1.62, Q = F.filter(f => vis(f, 0) > 0.5 && (ank(f) - P(f, 0).y) > 15).map(f => ({ t: f.t, bp: ank(f) - P(f, 0).y, a: ank(f) }));
+    // chão aprendido no próprio arremesso: com os pés no chão, altura do tornozelo na imagem = a + k × tamanho do corpo (vale em qualquer distância)
+    const gnd = Q.filter(q => q.t <= t0 - 0.5 || q.t >= t0 + 0.45);
+    if (gnd.length >= 4) {
+      const mb = gnd.reduce((t, q) => t + q.bp, 0) / gnd.length, spread = Math.max(...gnd.map(q => q.bp)) - Math.min(...gnd.map(q => q.bp));
+      let k = kk0; if (spread > mb * 0.08) { const ma = gnd.reduce((t, q) => t + q.a, 0) / gnd.length; let sxy = 0, sxx = 0; for (const q of gnd) { sxy += (q.bp - mb) * (q.a - ma); sxx += (q.bp - mb) ** 2; } const kf = sxy / sxx; if (kf > 0.3 && kf < 1.5) k = kf; }
+      const a0 = medN(gnd.map(q => q.a - k * q.bp)), lmm = q => ((a0 + k * q.bp) - q.a) * 1.62 / q.bp;
+      const fl = Q.filter(q => q.t >= t0 - 0.35 && q.t <= t0 + 0.4).map(lmm).sort((x, y) => y - x);
+      if (fl.length >= 3) { const j2 = Math.max(0, fl[1] * 100); jcm = j2; lift = j2 / 181 * hpx; }
+    }
+  } catch (e) {}
   const relH = (base - top(R)) / body * 1.81;
   const plant = F.filter(f => f.t <= t0 - 0.3), PL2 = plant.length ? plant : F.slice(0, 3);
   const footOf = f => { const ids = [29, 30, 31, 32].filter(i => f.lm[i] && f.lm[i].v > 0.3), U = ids.length ? ids : [27, 28]; return [U.reduce((t, i) => t + f.lm[i].x, 0) / U.length, U.reduce((t, i) => t + f.lm[i].y, 0) / U.length]; };
@@ -3243,7 +3266,7 @@ function bodyMetrics(F, t0) {
   const hipX = f => (P(f, 23).x + P(f, 24).x) / 2, fd = Wf.length ? Math.abs(hipX(R) - hipX(Wf[di])) / body : null;
   const xs = FIG.map(i => P(R, i).x), ys = FIG.map(i => P(R, i).y), x0 = Math.min(...xs), y0 = Math.min(...ys), sc = Math.max(Math.max(...xs) - x0, Math.max(...ys) - y0) || 1;
   const phh = proc.height || 270;
-  return { tp: tp == null ? null : +tp.toFixed(2), pz: +pz.toFixed(2), fd: fd == null ? null : +fd.toFixed(3), rr: +((base - top(R)) / body).toFixed(3), jr: +(lift / body).toFixed(3), f: fp[0] != null ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4)] : null, o: fp[0] != null && hStand ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4), +(hStand / phh).toFixed(4)] : null, h, e: e == null ? null : Math.round(e), k: isFinite(k) ? Math.round(k) : null, j: Math.round(Math.min(90, cm(lift))), r: +relH.toFixed(2), lm: FIG.map(i => [+((P(R, i).x - x0) / sc).toFixed(2), +((P(R, i).y - y0) / sc).toFixed(2)]) };
+  return { tp: tp == null ? null : +tp.toFixed(2), pz: +pz.toFixed(2), fd: fd == null ? null : +fd.toFixed(3), rr: +((base - top(R)) / body).toFixed(3), jr: +(lift / hpx).toFixed(3), f: fp[0] != null ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4)] : null, o: fp[0] != null && hStand ? [+(fp[0] / 480).toFixed(4), +(fp[1] / phh).toFixed(4), +(hStand / phh).toFixed(4)] : null, h, e: e == null ? null : Math.round(e), k: isFinite(k) ? Math.round(k) : null, j: jcm > 95 ? null : Math.round(jcm), r: +relH.toFixed(2), lm: FIG.map(i => [+((P(R, i).x - x0) / sc).toFixed(2), +((P(R, i).y - y0) / sc).toFixed(2)]) };
 }
 function showBody(s) {
   const b = s && s.body, box = $('fxBody');
