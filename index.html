@@ -1639,7 +1639,7 @@ $('bCopy').onclick = () => {
   navigator.clipboard.writeText(txt).then(() => msg('Resumo copiado.'), () => msg(txt));
 };
 // ---------- cópia de segurança ----------
-function backupData() { const o = { app: 'contador-arremessos', v: 1, date: new Date().toISOString(), data: {} }; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('arremessos-')) o.data[k] = localStorage.getItem(k); } } catch (e) {} return o; }
+function backupData() { const o = { app: 'contador-arremessos', v: 1, date: new Date().toISOString(), data: {} }; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('arremessos-')) o.data[k] = localStorage.getItem(k); } } catch (e) {} o.data[LS] = JSON.stringify(hist); return o; }
 $('bExp').onclick = async () => {
   const o = backupData(), txt = JSON.stringify(o), name = 'arremessos-backup-' + new Date().toISOString().slice(0, 10) + '.json';
   try { const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
@@ -1651,11 +1651,12 @@ $('fImp').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
     const o = JSON.parse(await f.text()); if (!o || o.app !== 'contador-arremessos' || !o.data) throw 0;
-    let old = []; try { old = JSON.parse(localStorage.getItem(LS) || '[]'); } catch (x) {}
+    const old = hist.slice();
     let inc = []; try { inc = JSON.parse(o.data[LS] || '[]'); } catch (x) {}
     const byId = {}; for (const h of old.concat(inc)) if (h && h.id) byId[h.id] = h; // junta os treinos, sem repetir
     for (const k in o.data) if (k !== LS && k.startsWith('arremessos-')) localStorage.setItem(k, o.data[k]);
-    localStorage.setItem(LS, JSON.stringify(Object.values(byId).sort((a, b) => a.date < b.date ? -1 : 1)));
+    const all = Object.values(byId).sort((a, b) => a.date < b.date ? -1 : 1);
+    if (IDB.ok) { hist = all; await idbFlush(); } if (!IDB.ok || IDB.saved.size !== all.length) localStorage.setItem(LS, JSON.stringify(all));
     msg('Cópia restaurada: ' + Object.keys(byId).length + ' treinos. Recarregando…'); setTimeout(() => location.reload(), 1200);
   } catch (x) { msg('Esse arquivo não é uma cópia do app.'); }
 };
@@ -1665,7 +1666,34 @@ const fmtD = iso => { const d = new Date(iso); return isNaN(d) ? '–' : d.toLoc
 const LS = 'arremessos-historico';
 let hist = [], cur = null, viewSess = null, col = null, chain = Promise.resolve(), saveTimer = null, delArm = null;
 const lsLoad = () => { try { const v = JSON.parse(localStorage.getItem(LS) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
-const lsSave = () => { try { localStorage.setItem(LS, JSON.stringify(hist)); } catch (e) {} };
+// histórico no IndexedDB (cabe anos de treinos), um registro por treino: salvar só grava o treino que mudou
+const IDB = { db: null, ok: false, t: null, saved: new Map() }; let localHist = [];
+function idbOpen() { return new Promise(res => { try { const r = indexedDB.open('arremessos', 2); r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv'); if (!d.objectStoreNames.contains('sess')) d.createObjectStore('sess', { keyPath: 'id' }); }; r.onsuccess = () => { IDB.db = r.result; IDB.ok = true; res(true); }; r.onerror = () => res(false); } catch (e) { res(false); } }); }
+function idbReq(store, mode, fn) { return new Promise(res => { try { const tx = IDB.db.transaction(store, mode), q = fn(tx.objectStore(store)); let out; if (q) q.onsuccess = () => { out = q.result; }; tx.oncomplete = () => res({ ok: true, v: out }); tx.onerror = tx.onabort = () => res({ ok: false }); } catch (e) { res({ ok: false }); } }); }
+async function idbFlush() {
+  clearTimeout(IDB.t); IDB.t = null; if (!IDB.ok) return;
+  const now = new Map(hist.map(h => [h.id, h])), put = hist.filter(h => IDB.saved.get(h.id) !== h), del = [...IDB.saved.keys()].filter(id => !now.has(id));
+  if (!put.length && !del.length) return;
+  const r = await idbReq('sess', 'readwrite', st => { for (const h of put) st.put(h); for (const id of del) st.delete(id); return null; });
+  if (r.ok) IDB.saved = now; else { try { localStorage.setItem(LS, JSON.stringify(hist)); } catch (e) {} }
+}
+const lsSave = () => { if (IDB.ok) { clearTimeout(IDB.t); IDB.t = setTimeout(idbFlush, 400); return; } try { localStorage.setItem(LS, JSON.stringify(hist)); } catch (e) {} };
+addEventListener('pagehide', () => { if (IDB.t) idbFlush(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && IDB.t) idbFlush(); });
+async function histInit() { // junta o que estiver guardado (IndexedDB, versão antiga e localStorage) sem perder nada
+  if (!('indexedDB' in window) || !(await idbOpen())) return;
+  const a = await idbReq('sess', 'readonly', st => st.getAll()), b = await idbReq('kv', 'readonly', st => st.get('historico'));
+  if (!a.ok) { IDB.ok = false; return; }
+  const fromDb = a.v || [], old = Array.isArray(b.v) ? b.v : [], ls = lsLoad(), byId = {};
+  for (const h of fromDb.concat(old, ls, hist)) if (h && h.id) byId[h.id] = h;
+  hist = Object.values(byId).sort((x, y) => x.date < y.date ? -1 : 1); localHist = hist.slice();
+  IDB.saved = new Map(fromDb.map(h => [h.id, byId[h.id] === h ? h : null]));
+  await idbFlush();
+  if (IDB.ok && IDB.saved.size === hist.length) { if (old.length) await idbReq('kv', 'readwrite', st => st.delete('historico')); try { localStorage.removeItem(LS); } catch (e) {} }
+  renderHist();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {} // pede ao navegador para não apagar
+}
+
 function newSession() { cur = { id: 's' + Date.now(), date: new Date().toISOString(), src: live ? 'Ao vivo' : 'Vídeo', t0: Date.now() }; }
 function recDate(m, file) { // dia e hora em que o vídeo foi gravado (não quando foi enviado)
   const ok = d => d && d.getFullYear() >= 2015 && d.getTime() < Date.now() + 864e5;
@@ -2155,7 +2183,7 @@ $('bForget').onclick = () => {
   $('bForget').dataset.arm = ''; $('bForget').textContent = 'Esquecer a quadra (mudei a câmera)';
   profile = JSON.parse(JSON.stringify(MY_COURT)); saveProfile(); A.relearn(); msg('Voltei para a quadra de referência. Se a câmera mudou de lugar, use "Marcar o aro" depois do próximo vídeo.');
 };
-hist = lsLoad(); renderHist();
+hist = lsLoad(); renderHist(); histInit();
 (async () => {
   if (!window.claude || !claude.use) { $('hNote').textContent = 'Histórico guardado neste aparelho.'; return; }
   try {
@@ -2179,7 +2207,7 @@ hist = lsLoad(); renderHist();
       const merged = cloud.slice();
       const curLocal = cur && hist.find(h => h.id === cur.id);
       hist = merged; if (curLocal && !hist.some(h => h.id === curLocal.id)) hist.push(curLocal);
-      if (first && snap.metadata.fromCache) for (const h of lsLoad()) if (!hist.some(c => c.id === h.id)) hist.push(h);
+      if (first && snap.metadata.fromCache) for (const h of (IDB.ok ? localHist : lsLoad())) if (!hist.some(c => c.id === h.id)) hist.push(h);
       lsSave(); renderHist();
     }, () => { clearTimeout(timer); $('hNote').textContent = 'Histórico guardado neste aparelho.'; col = null; });
   } catch (e) { $('hNote').textContent = 'Histórico guardado neste aparelho.'; }
